@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+  <title>Off Season AR — Polymetron</title>
+  <meta name="description" content="Spatial computing for what's being built. Polymetron glass-box reasoning attached to captured spaces.">
+  <link rel="stylesheet" href="css/styles.css">
+  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
+</head>
+<body>
+  <header>
+    <div class="brand">Polymetron</div>
+    <div class="tagline">spatial computing for what's being built</div>
+  </header>
+
+  <main>
+    <section class="wedge">
+      <h1>iPhone scans a real space.<br>Reasoning chains attach to every surface.<br>Anyone with an iPhone walks through it in their own room.</h1>
+      <p class="lede">
+        Tap a numbered dot for the citable reasoning behind it.
+        <span class="note">↓ On iPhone: tap <em>View in AR</em> to place this space in front of you.</span>
+      </p>
+    </section>
+
+    <model-viewer
+      id="viewer"
+      src="assets/capture.glb"
+      ios-src="assets/capture.usdz"
+      poster="assets/poster.jpg"
+      alt="Captured space"
+      ar
+      ar-modes="quick-look webxr scene-viewer"
+      ar-scale="auto"
+      camera-controls
+      touch-action="pan-y"
+      shadow-intensity="1"
+      exposure="1"
+      environment-image="neutral"
+      loading="eager">
+      <div slot="ar-button" class="ar-button">View in AR</div>
+      <div slot="poster" class="poster-overlay">
+        <p class="hint">Loading captured space… <br><small>If this stays here, the asset hasn't been added yet (Phase 1).</small></p>
+      </div>
+    </model-viewer>
+
+    <aside id="panel" class="panel" aria-live="polite">
+      <button class="panel-close" aria-label="Close">×</button>
+      <div id="panel-content">
+        <p class="hint">Tap a numbered dot in the model to see the reasoning chain.</p>
+      </div>
+    </aside>
+
+    <section class="wedge-bottom">
+      <h2>The gap in spatial computing</h2>
+      <p>
+        Content, face, and lens are funded. <strong>What's being built</strong> is not.
+        Construction Tech and 3D vision for the built environment is the empty slot.
+        Polymetron fills it with a reasoning layer that survives technical due diligence —
+        every claim cites real code, real zoning, real public data.
+      </p>
+      <p class="footnote">
+        Built on a working food-system platform deployed at Georgia Tech and the City of Atlanta
+        (30+ live data layers, real institutional partnerships).
+        The construction vertical is the next module on the same fabric.
+      </p>
+    </section>
+  </main>
+
+  <footer><small>Off Season AR · Polymetron · Atlanta</small></footer>
+
+  <script>
+    const viewer = document.getElementById("viewer");
+    const panel = document.getElementById("panel");
+    const panelContent = document.getElementById("panel-content");
+    panel.querySelector(".panel-close").addEventListener("click", () => panel.classList.remove("open"));
+
+    async function loadHotspots() {
+      try {
+        const res = await fetch("data/hotspots.json", { cache: "no-cache" });
+        if (!res.ok) throw new Error();
+        const hotspots = await res.json();
+        hotspots.forEach((h, i) => {
+          const btn = document.createElement("button");
+          btn.setAttribute("slot", `hotspot-${i + 1}`);
+          btn.setAttribute("data-position", h.position);
+          btn.setAttribute("data-normal", h.normal || "0 1 0");
+          btn.className = "hotspot";
+          btn.innerHTML = `<span>${i + 1}</span>`;
+          btn.addEventListener("click", () => openHotspot(h));
+          viewer.appendChild(btn);
+        });
+      } catch {
+        panelContent.innerHTML = `<p class="hint">Hotspots appear after Phase 1 (capture + drop assets) and Phase 4 (positions).</p>`;
+      }
+    }
+
+    function openHotspot(h) {
+      const chain = h.reasoning.map(r =>
+        `<div class="chain-step"><span class="step-tag">${r.tag}</span><span class="step-text">${r.text}</span></div>`).join("");
+      const citations = h.citations ? `<div class="citations"><strong>Citations:</strong> ${h.citations.join(" · ")}</div>` : "";
+      panelContent.innerHTML = `<h3>${h.title}</h3><p class="kicker">${h.kicker || ""}</p><div class="chain">${chain}</div>${citations}`;
+      panel.classList.add("open");
+    }
+
+    let devMode = false;
+    window.dev = () => {
+      devMode = !devMode;
+      console.log(`%c[dev ${devMode ? "ON" : "OFF"}]`, "color:#00bfa5;font-weight:bold;",
+        devMode ? "Click model to log position + normal." : "");
+      return devMode;
+    };
+    viewer.addEventListener("click", (event) => {
+      if (!devMode) return;
+      const rect = viewer.getBoundingClientRect();
+      const hit = viewer.positionAndNormalFromPoint(event.clientX - rect.left, event.clientY - rect.top);
+      if (!hit) { console.log("[dev] miss — click off model"); return; }
+      const pos = `${hit.position.x.toFixed(3)} ${hit.position.y.toFixed(3)} ${hit.position.z.toFixed(3)}`;
+      const norm = `${hit.normal.x.toFixed(3)} ${hit.normal.y.toFixed(3)} ${hit.normal.z.toFixed(3)}`;
+      console.log(`%c[hotspot pick]`, "color:#00bfa5;font-weight:bold;", `\n  "position": "${pos}",\n  "normal":   "${norm}"`);
+    });
+
+    loadHotspots();
+  </script>
+</body>
+</html>
