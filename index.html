@@ -1,121 +1,1551 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Polymetron</title>
-  <meta name="description" content="Polymetron captures buildings and streets with an iPhone and attaches the public rules and data behind them.">
-  <link rel="stylesheet" href="css/styles.css">
-  <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
-</head>
-<body>
-  <header>
-    <div class="brand">Polymetron</div>
-    <div class="tagline">we map buildings and streets</div>
-  </header>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no">
+  <meta name="theme-color" content="#324049">
+  <title>Polymetron &mdash; Edge Perception</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    /* ============================================================
+       RESET + ROOT
+    ============================================================ */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
-  <main>
-    <section class="wedge">
-      <h1>Point your iPhone at a building or a street. We attach the public rules and data behind it. Send the link and anyone can walk through it from their own phone.</h1>
-      <p class="lede">
-        Tap any numbered dot. The reasoning chain opens with its sources.
-        <span class="note">If you're on iPhone, the View in AR button places the captured space in front of you.</span>
-      </p>
-    </section>
+    :root {
+      --bg: #324049;
+      --surface: rgba(58, 79, 94, 0.55);
+      --rule: rgba(210, 218, 223, 0.12);
+      --ink: #d2dadf;
+      --dim: #a4b1bc;
+      --spinellblau: #1c5c84;
+      --teal: #7d9caf;
+    }
 
-    <model-viewer
-      id="viewer"
-      src="assets/capture.glb"
-      ios-src="assets/capture.usdz"
-      poster="assets/poster.jpg"
-      alt="Captured space"
-      ar
-      ar-modes="quick-look webxr scene-viewer"
-      ar-scale="auto"
-      camera-controls
-      touch-action="pan-y"
-      shadow-intensity="1"
-      exposure="1"
-      environment-image="neutral"
-      loading="eager">
-      <div slot="ar-button" class="ar-button">View in AR</div>
-      <div slot="poster" class="poster-overlay">
-        <p class="hint">Loading captured space. <br><small>If this stays here, the capture file hasn't been added yet.</small></p>
-      </div>
-    </model-viewer>
+    html, body {
+      height: 100%;
+      overflow: hidden;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: 'Manrope', system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
 
-    <aside id="panel" class="panel" aria-live="polite">
-      <button class="panel-close" aria-label="Close">×</button>
-      <div id="panel-content">
-        <p class="hint">Tap a numbered dot in the model to see the reasoning chain.</p>
-      </div>
-    </aside>
+    /* ============================================================
+       KEYFRAMES
+    ============================================================ */
+    @keyframes agentPulse {
+      0%, 100% { transform: scale(1); opacity: 1; box-shadow: 0 0 0 0 rgba(28,92,132,0.55); }
+      50%       { transform: scale(1.08); opacity: 0.7; box-shadow: 0 0 0 7px rgba(28,92,132,0); }
+    }
 
-    <section class="wedge-bottom">
-      <h2>Why this and not generative</h2>
-      <p>
-        Most spatial AI work right now is generative. Image to 3D, prompt to scene, video to world. That's a fine direction for content. It's the wrong direction for buildings and streets, where the consequence of a hallucinated detail is somebody losing money or somebody getting hurt. Polymetron goes the other way. The capture is real, the hotspots point to ordinances and census tracts you can look up yourself, and nothing in the reasoning chain is generated.
-      </p>
-      <p class="footnote">
-        We've been running a food-system mapping platform with Georgia Tech and the City of Atlanta for the past year. The team and the data pipeline are the same. Buildings and streets are what we're adding now.
-      </p>
-    </section>
-  </main>
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to   { opacity: 1; }
+    }
 
-  <footer><small>Polymetron · Atlanta</small></footer>
+    @keyframes slideUp {
+      from { transform: translateY(100%); opacity: 0; }
+      to   { transform: translateY(0);    opacity: 1; }
+    }
 
-  <script>
-    const viewer = document.getElementById("viewer");
-    const panel = document.getElementById("panel");
-    const panelContent = document.getElementById("panel-content");
-    panel.querySelector(".panel-close").addEventListener("click", () => panel.classList.remove("open"));
+    /* ============================================================
+       GLASS UTILITY
+    ============================================================ */
+    .glass {
+      background: rgba(50, 64, 73, 0.78);
+      backdrop-filter: blur(22px) saturate(135%);
+      -webkit-backdrop-filter: blur(22px) saturate(135%);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      box-shadow: 0 24px 64px -16px rgba(0,0,0,0.45), inset 1px 0 0 rgba(255,255,255,0.04);
+    }
 
-    async function loadHotspots() {
-      try {
-        const res = await fetch("data/hotspots.json", { cache: "no-cache" });
-        if (!res.ok) throw new Error();
-        const hotspots = await res.json();
-        hotspots.forEach((h, i) => {
-          const btn = document.createElement("button");
-          btn.setAttribute("slot", `hotspot-${i + 1}`);
-          btn.setAttribute("data-position", h.position);
-          btn.setAttribute("data-normal", h.normal || "0 1 0");
-          btn.className = "hotspot";
-          btn.innerHTML = `<span>${i + 1}</span>`;
-          btn.addEventListener("click", () => openHotspot(h));
-          viewer.appendChild(btn);
-        });
-      } catch {
-        panelContent.innerHTML = `<p class="hint">Hotspots show up once the capture lands in assets and the positions are set in hotspots.json.</p>`;
+    /* ============================================================
+       PULSE DOT
+    ============================================================ */
+    .pulse-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--spinellblau);
+      animation: agentPulse 2.4s ease-in-out infinite;
+      flex-shrink: 0;
+    }
+
+    /* ============================================================
+       STAGE (viewport root)
+    ============================================================ */
+    #stage {
+      position: relative;
+      width: 100%;
+      height: 100%;
+      overflow: hidden;
+    }
+
+    /* ============================================================
+       VIDEO + CANVAS
+    ============================================================ */
+    #video {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      background: #111;
+    }
+
+    #overlay {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+    }
+
+    /* ============================================================
+       HEADER
+    ============================================================ */
+    #header {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      z-index: 20;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px 20px;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    #header.visible {
+      animation: fadeIn 0.4s ease forwards;
+      pointer-events: auto;
+    }
+
+    .brand {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+
+    .brand-name {
+      font-family: 'Instrument Serif', serif;
+      font-size: 1.35rem;
+      letter-spacing: 0.04em;
+      color: var(--ink);
+      line-height: 1;
+    }
+
+    .brand-sub {
+      font-family: 'Manrope', sans-serif;
+      font-size: 0.65rem;
+      font-weight: 500;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .status-pill {
+      display: flex;
+      align-items: center;
+      gap: 7px;
+      padding: 5px 12px 5px 8px;
+      border-radius: 999px;
+      font-size: 0.7rem;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      color: var(--ink);
+    }
+
+    /* ============================================================
+       PANEL (right sidebar desktop, bottom sheet mobile)
+    ============================================================ */
+    #panel {
+      position: absolute;
+      top: 60px;
+      right: 16px;
+      bottom: 16px;
+      width: 360px;
+      z-index: 20;
+      border-radius: 16px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      opacity: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    #panel.visible {
+      animation: fadeIn 0.4s ease 0.1s forwards;
+      pointer-events: auto;
+    }
+
+    /* Mobile: bottom sheet */
+    @media (max-width: 768px) {
+      #panel {
+        top: auto;
+        right: 0;
+        left: 0;
+        bottom: 0;
+        width: 100%;
+        height: 54vh;
+        border-radius: 20px 20px 0 0;
+        transform: translateY(100%);
+        opacity: 1;
+      }
+
+      #panel.visible {
+        animation: slideUp 0.3s ease forwards;
       }
     }
 
-    function openHotspot(h) {
-      const chain = h.reasoning.map(r =>
-        `<div class="chain-step"><span class="step-tag">${r.tag}</span><span class="step-text">${r.text}</span></div>`).join("");
-      const citations = h.citations ? `<div class="citations"><strong>Citations</strong> ${h.citations.join(", ")}</div>` : "";
-      panelContent.innerHTML = `<h3>${h.title}</h3><p class="kicker">${h.kicker || ""}</p><div class="chain">${chain}</div>${citations}`;
-      panel.classList.add("open");
+    /* ============================================================
+       COUNTERS
+    ============================================================ */
+    .counters {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      flex-shrink: 0;
     }
 
-    let devMode = false;
-    window.dev = () => {
-      devMode = !devMode;
-      console.log(`%c[dev ${devMode ? "ON" : "OFF"}]`, "color:#00bfa5;font-weight:bold;",
-        devMode ? "Click model to log position and normal." : "");
-      return devMode;
+    .counter-tile {
+      background: rgba(28, 92, 132, 0.18);
+      border: 1px solid rgba(125, 156, 175, 0.2);
+      border-radius: 10px;
+      padding: 10px 8px;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .counter-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 1.6rem;
+      font-weight: 500;
+      color: var(--ink);
+      line-height: 1;
+    }
+
+    .counter-label {
+      font-size: 0.62rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    /* ============================================================
+       PANEL SECTION TITLE (shared)
+    ============================================================ */
+    .panel-section-title {
+      font-size: 0.62rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    /* ============================================================
+       TREND PANEL (60-second activity window)
+    ============================================================ */
+    .trend-panel {
+      flex-shrink: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .trend-header {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+    }
+
+    .trend-stat {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.66rem;
+      color: var(--teal);
+    }
+
+    .trend-sparkline {
+      height: 38px;
+      width: 100%;
+      display: block;
+      background: rgba(28, 92, 132, 0.08);
+      border-radius: 6px;
+    }
+
+    .trend-sparkline rect {
+      fill: var(--spinellblau);
+      opacity: 0.65;
+    }
+
+    .trend-sparkline rect.tip { opacity: 1; }
+
+    /* ============================================================
+       NARRATION HISTORY (last 5 captions, newest first)
+    ============================================================ */
+    .history-panel {
+      flex: 1;
+      min-height: 80px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .history-list {
+      flex: 1;
+      overflow-y: auto;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 0;
+    }
+
+    .history-list::-webkit-scrollbar { width: 3px; }
+    .history-list::-webkit-scrollbar-track { background: transparent; }
+    .history-list::-webkit-scrollbar-thumb { background: rgba(125,156,175,0.3); border-radius: 2px; }
+
+    .history-item {
+      display: grid;
+      grid-template-columns: 60px 1fr;
+      gap: 8px;
+      padding-bottom: 8px;
+      border-bottom: 1px solid var(--rule);
+    }
+
+    .history-item:last-child { border-bottom: none; padding-bottom: 0; }
+
+    .history-time {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--dim);
+      white-space: nowrap;
+      padding-top: 2px;
+    }
+
+    .history-text {
+      font-family: 'Instrument Serif', serif;
+      font-style: italic;
+      font-size: 0.88rem;
+      line-height: 1.35;
+      color: var(--ink);
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .history-mode { margin-right: 4px; font-size: 0.88em; }
+
+    .history-empty {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--dim);
+      font-style: italic;
+      padding: 8px 0;
+    }
+
+    /* ============================================================
+       STATS STRIP
+    ============================================================ */
+    .stats {
+      flex-shrink: 0;
+      border-top: 1px solid var(--rule);
+      padding-top: 12px;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px 16px;
+    }
+
+    .stat-row {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .stat-label {
+      font-size: 0.58rem;
+      font-weight: 600;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .stat-value {
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--ink);
+    }
+
+    .stat-value.privacy {
+      color: var(--spinellblau);
+      font-weight: 600;
+    }
+
+    /* ============================================================
+       START OVERLAY
+    ============================================================ */
+    #startOverlay {
+      position: absolute;
+      inset: 0;
+      z-index: 40;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px 24px;
+      text-align: center;
+      background: rgba(30, 40, 47, 0.82);
+      backdrop-filter: blur(20px) saturate(120%);
+      -webkit-backdrop-filter: blur(20px) saturate(120%);
+      transition: opacity 0.35s ease;
+    }
+
+    #startOverlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .overlay-brand {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+      margin-bottom: 32px;
+    }
+
+    .overlay-brand-mark {
+      width: 52px;
+      height: 52px;
+      border-radius: 14px;
+      background: var(--spinellblau);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin-bottom: 10px;
+    }
+
+    .overlay-brand-mark svg {
+      width: 28px;
+      height: 28px;
+    }
+
+    .overlay-brand-name {
+      font-family: 'Instrument Serif', serif;
+      font-size: 1.6rem;
+      letter-spacing: 0.05em;
+      color: var(--ink);
+    }
+
+    .overlay-brand-sub {
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.14em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .overlay-headline {
+      font-family: 'Manrope', sans-serif;
+      font-size: clamp(1rem, 3.5vw, 1.25rem);
+      font-weight: 600;
+      color: var(--ink);
+      line-height: 1.45;
+      max-width: 380px;
+      margin-bottom: 12px;
+    }
+
+    .overlay-subhead {
+      font-size: 0.82rem;
+      font-weight: 500;
+      color: var(--dim);
+      line-height: 1.5;
+      max-width: 320px;
+      margin-bottom: 36px;
+      min-height: 2.5em;
+    }
+
+    .overlay-subhead.error-text {
+      color: #ef5350;
+    }
+
+    #startBtn {
+      font-family: 'Manrope', sans-serif;
+      font-size: 0.88rem;
+      font-weight: 700;
+      letter-spacing: 0.04em;
+      color: #fff;
+      background: var(--spinellblau);
+      border: none;
+      border-radius: 10px;
+      padding: 14px 36px;
+      cursor: pointer;
+      transition: opacity 0.2s, transform 0.15s;
+    }
+
+    #startBtn:hover:not(:disabled) { opacity: 0.88; transform: translateY(-1px); }
+    #startBtn:active:not(:disabled) { transform: translateY(0); }
+
+    #startBtn:disabled {
+      opacity: 0.45;
+      cursor: not-allowed;
+    }
+
+    /* ============================================================
+       CAPTION CARD (VLM "what I see and say")
+    ============================================================ */
+    .caption-card {
+      flex-shrink: 0;
+      border-left: 3px solid var(--spinellblau);
+      background: rgba(28, 92, 132, 0.14);
+      border-radius: 0 12px 12px 0;
+      padding: 12px 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .caption-status {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .caption-status-text {
+      font-size: 0.6rem;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: var(--dim);
+    }
+
+    .caption-text {
+      font-family: 'Instrument Serif', serif;
+      font-style: italic;
+      font-size: 1.02rem;
+      line-height: 1.42;
+      color: var(--ink);
+      min-height: 1.42em;
+      max-height: 5.6em;
+      overflow-y: auto;
+      word-wrap: break-word;
+      overflow-wrap: anywhere;
+    }
+
+    .caption-text::-webkit-scrollbar { width: 3px; }
+    .caption-text::-webkit-scrollbar-thumb {
+      background: rgba(125,156,175,0.3);
+      border-radius: 2px;
+    }
+
+    .caption-text.thinking { color: var(--dim); }
+
+    /* ============================================================
+       MODE TOGGLE (Food rescue / Public space)
+    ============================================================ */
+    .mode-toggle {
+      flex-shrink: 0;
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 6px;
+      padding: 4px;
+      background: rgba(28, 92, 132, 0.10);
+      border-radius: 10px;
+      border: 1px solid rgba(125, 156, 175, 0.16);
+    }
+
+    .mode-btn {
+      font-family: 'Manrope', sans-serif;
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      color: var(--dim);
+      background: transparent;
+      border: none;
+      border-radius: 7px;
+      padding: 7px 8px;
+      cursor: pointer;
+      transition: background 0.18s, color 0.18s;
+    }
+
+    .mode-btn:hover { color: var(--ink); }
+
+    .mode-btn.active {
+      background: var(--spinellblau);
+      color: #fff;
+    }
+
+    .mode-btn .mode-icon {
+      display: inline-block;
+      margin-right: 4px;
+      vertical-align: -1px;
+    }
+
+    .caption-text.thinking::after {
+      content: '';
+      display: inline-block;
+      width: 6px;
+      height: 14px;
+      background: var(--spinellblau);
+      margin-left: 4px;
+      animation: caretBlink 1s steps(2) infinite;
+      vertical-align: text-bottom;
+    }
+
+    @keyframes caretBlink {
+      0%, 49.9% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+
+    /* ============================================================
+       AUDIO TOGGLE
+    ============================================================ */
+    .audio-toggle {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(50, 64, 73, 0.78);
+      backdrop-filter: blur(22px) saturate(135%);
+      -webkit-backdrop-filter: blur(22px) saturate(135%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+      padding: 0;
+      color: var(--ink);
+      transition: opacity 0.2s;
+    }
+
+    .audio-toggle:hover { opacity: 0.85; }
+    .audio-toggle.muted { color: var(--dim); }
+    .audio-toggle svg { width: 16px; height: 16px; }
+
+    .header-right {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    /* Safe area padding for iPhone notch/home bar */
+    @supports (padding-bottom: env(safe-area-inset-bottom)) {
+      #panel { padding-bottom: calc(16px + env(safe-area-inset-bottom)); }
+      #startOverlay { padding-bottom: calc(32px + env(safe-area-inset-bottom)); }
+    }
+  </style>
+</head>
+<body>
+  <div id="stage">
+    <!-- Camera stream -->
+    <video id="video" playsinline autoplay muted></video>
+
+    <!-- Detection overlay canvas -->
+    <canvas id="overlay"></canvas>
+
+    <!-- Header: brand + audio toggle + status -->
+    <header id="header" class="glass">
+      <div class="brand">
+        <span class="brand-name">Polymetron</span>
+        <span class="brand-sub">Edge Perception</span>
+      </div>
+      <div class="header-right">
+        <button class="audio-toggle" id="audioToggle" aria-label="Mute narration" title="Toggle narration">
+          <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 9v6h4l5 5V4L7 9H3z"/>
+            <path d="M16.5 12a4.5 4.5 0 0 0-2.5-4v8a4.5 4.5 0 0 0 2.5-4zM14 3.23v2.06A7 7 0 0 1 14 18.71v2.06a9 9 0 0 0 0-17.54z"/>
+          </svg>
+        </button>
+        <div class="status-pill glass">
+          <div class="pulse-dot"></div>
+          <span id="statusText">Live</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Right panel / bottom sheet -->
+    <aside id="panel" class="glass">
+      <div class="counters">
+        <div class="counter-tile">
+          <span class="counter-value" id="cntPeople">0</span>
+          <span class="counter-label">People</span>
+        </div>
+        <div class="counter-tile">
+          <span class="counter-value" id="cntVehicles">0</span>
+          <span class="counter-label">Vehicles</span>
+        </div>
+        <div class="counter-tile">
+          <span class="counter-value" id="cntInfra">0</span>
+          <span class="counter-label">Infra</span>
+        </div>
+      </div>
+
+      <!-- Mode toggle: tells the VLM what job to do -->
+      <div class="mode-toggle" role="tablist" aria-label="Caption mode">
+        <button class="mode-btn" id="modeFood" data-mode="food_rescue" role="tab" aria-selected="false">
+          <span class="mode-icon">🍞</span>Food rescue
+        </button>
+        <button class="mode-btn active" id="modePublic" data-mode="public_space" role="tab" aria-selected="true">
+          <span class="mode-icon">🏙</span>Public space
+        </button>
+      </div>
+
+      <!-- VLM caption card: what the model sees and says -->
+      <div class="caption-card">
+        <div class="caption-status">
+          <div class="pulse-dot"></div>
+          <span class="caption-status-text" id="captionStatus">Initializing model</span>
+        </div>
+        <p class="caption-text thinking" id="captionText">Loading vision-language model&hellip;</p>
+      </div>
+
+      <!-- Activity trend: rolling 60-second window of total scene detections -->
+      <div class="trend-panel">
+        <div class="trend-header">
+          <span class="panel-section-title">Activity · 60 s</span>
+          <span class="trend-stat" id="trendStat">peak —</span>
+        </div>
+        <svg class="trend-sparkline" id="trendSparkline" viewBox="0 0 60 38" preserveAspectRatio="none">
+          <!-- 60 bars rendered dynamically, one per second -->
+        </svg>
+      </div>
+
+      <!-- Narration history: the model's recent stream of observations -->
+      <div class="history-panel">
+        <span class="panel-section-title">Narration · last 5</span>
+        <div class="history-list" id="historyList">
+          <span class="history-empty">Waiting for first description&hellip;</span>
+        </div>
+      </div>
+
+      <div class="stats">
+        <div class="stat-row">
+          <span class="stat-label">Detector</span>
+          <span class="stat-value" id="statBackend">coco-ssd · loading</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">Det. latency</span>
+          <span class="stat-value" id="statLatency">-- ms</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">VLM</span>
+          <span class="stat-value" id="statVlmBackend">smolvlm · --</span>
+        </div>
+        <div class="stat-row">
+          <span class="stat-label">VLM latency</span>
+          <span class="stat-value" id="statVlmLatency">-- ms</span>
+        </div>
+        <div class="stat-row" style="grid-column: 1 / -1;">
+          <span class="stat-label">Privacy</span>
+          <span class="stat-value privacy" id="statPrivacy">Data leaving device: none</span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- Start / error overlay -->
+    <div id="startOverlay">
+      <div class="overlay-brand">
+        <div class="overlay-brand-mark">
+          <!-- Simple geometric eye/lens SVG mark -->
+          <svg viewBox="0 0 28 28" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <circle cx="14" cy="14" r="5" fill="#fff"/>
+            <path d="M14 4C8.48 4 4 9.37 4 14s4.48 10 10 10 10-5.37 10-10S19.52 4 14 4z" stroke="#fff" stroke-width="1.4" fill="none"/>
+            <circle cx="14" cy="14" r="2" fill="#1c5c84"/>
+          </svg>
+        </div>
+        <span class="overlay-brand-name">Polymetron</span>
+        <span class="overlay-brand-sub">Edge Perception</span>
+      </div>
+
+      <p class="overlay-headline">On-device computer vision that describes what it sees, out loud. No data leaves your phone.</p>
+
+      <p class="overlay-subhead" id="overlaySubhead">Tap to start your rear camera. The first model load is slow over LTE.</p>
+
+      <button id="startBtn">Start camera</button>
+    </div>
+  </div>
+
+  <!-- CDN: load in order, no defer — coco-ssd needs tf as global -->
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.20.0/dist/tf.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/coco-ssd@2.2.3/dist/coco-ssd.min.js"></script>
+
+  <script>
+    'use strict';
+
+    /* ============================================================
+       CONSTANTS
+    ============================================================ */
+    var CONF_THRESHOLD = 0.5;
+    var THROTTLE_MS    = 180;
+    var TREND_WINDOW_S = 60;
+
+    var CATEGORY_MAP = {
+      'person': 'people',
+      'bicycle': 'vehicles',
+      'car': 'vehicles',
+      'motorcycle': 'vehicles',
+      'bus': 'vehicles',
+      'truck': 'vehicles',
+      'train': 'vehicles',
+      'traffic light': 'infrastructure',
+      'fire hydrant': 'infrastructure',
+      'stop sign': 'infrastructure',
+      'parking meter': 'infrastructure',
+      'bench': 'infrastructure',
+      'backpack': 'goods',
+      'umbrella': 'goods',
+      'handbag': 'goods',
+      'suitcase': 'goods',
+      'bottle': 'goods',
+      'cup': 'goods',
+      'bowl': 'goods',
+      'bird': 'animals',
+      'cat': 'animals',
+      'dog': 'animals',
+      'horse': 'animals',
+      'potted plant': 'flora'
     };
-    viewer.addEventListener("click", (event) => {
-      if (!devMode) return;
-      const rect = viewer.getBoundingClientRect();
-      const hit = viewer.positionAndNormalFromPoint(event.clientX - rect.left, event.clientY - rect.top);
-      if (!hit) { console.log("[dev] miss, click off model"); return; }
-      const pos = `${hit.position.x.toFixed(3)} ${hit.position.y.toFixed(3)} ${hit.position.z.toFixed(3)}`;
-      const norm = `${hit.normal.x.toFixed(3)} ${hit.normal.y.toFixed(3)} ${hit.normal.z.toFixed(3)}`;
-      console.log(`%c[hotspot pick]`, "color:#00bfa5;font-weight:bold;", `\n  "position": "${pos}",\n  "normal":   "${norm}"`);
+
+    var GROUP_COLORS = {
+      people:         '#3b82f6',
+      vehicles:       '#22c55e',
+      infrastructure: '#f59e0b',
+      goods:          '#a855f7',
+      animals:        '#14b8a6',
+      flora:          '#84cc16'
+    };
+
+    var DEFAULT_COLOR = '#d2dadf';
+
+    /* ============================================================
+       DOM REFS
+    ============================================================ */
+    var video        = document.getElementById('video');
+    var overlay      = document.getElementById('overlay');
+    var header       = document.getElementById('header');
+    var panel        = document.getElementById('panel');
+    var startOverlay = document.getElementById('startOverlay');
+    var startBtn     = document.getElementById('startBtn');
+    var overlaySubhead = document.getElementById('overlaySubhead');
+
+    var cntPeople    = document.getElementById('cntPeople');
+    var cntVehicles  = document.getElementById('cntVehicles');
+    var cntInfra     = document.getElementById('cntInfra');
+
+    var trendSparkline = document.getElementById('trendSparkline');
+    var trendStat      = document.getElementById('trendStat');
+
+    var statBackend  = document.getElementById('statBackend');
+    var statLatency  = document.getElementById('statLatency');
+
+    var ctx          = overlay.getContext('2d');
+
+    /* ============================================================
+       STATE
+    ============================================================ */
+    var state = 'idle';    // idle | loading | live | error
+    var model = null;
+    var lastInferenceTs = 0;
+    var rafId = null;
+
+    /* Activity trend: 60-element ring buffer indexed by (epochSec % 60).
+       Each cell holds the MAX visible-bbox count observed during that
+       second of clock time. Lets us draw a rolling 60s sparkline
+       without an unbounded list. */
+    var activityHistory   = new Array(TREND_WINDOW_S).fill(0);
+    var activityCurrentSec = -1;
+    var activityPeak       = 0;
+    var lastTrendRenderMs  = 0;
+
+    /* ============================================================
+       STATE TRANSITIONS
+    ============================================================ */
+    function setState(next, msg) {
+      state = next;
+
+      if (next === 'idle') {
+        startOverlay.classList.remove('hidden');
+        overlaySubhead.classList.remove('error-text');
+        overlaySubhead.textContent = 'Tap to start your rear camera.';
+        startBtn.disabled = false;
+        header.classList.remove('visible');
+        panel.classList.remove('visible');
+      }
+
+      if (next === 'loading') {
+        startOverlay.classList.remove('hidden');
+        overlaySubhead.classList.remove('error-text');
+        overlaySubhead.textContent = 'Loading model…';
+        startBtn.disabled = true;
+      }
+
+      if (next === 'live') {
+        startOverlay.classList.add('hidden');
+        header.classList.add('visible');
+        panel.classList.add('visible');
+        statBackend.textContent = 'coco-ssd · ' + tf.getBackend();
+        window.polymetronVideo = video;
+        window.dispatchEvent(new CustomEvent('polymetron:cameralive'));
+      }
+
+      if (next === 'error') {
+        startOverlay.classList.remove('hidden');
+        overlaySubhead.classList.add('error-text');
+        overlaySubhead.textContent = msg || 'An error occurred.';
+        startBtn.disabled = false;
+        header.classList.remove('visible');
+        panel.classList.remove('visible');
+        stopCamera();
+      }
+    }
+
+    /* ============================================================
+       CAMERA
+    ============================================================ */
+    var activeStream = null;
+
+    function startCamera() {
+      return navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: 'environment' }, width: { ideal: 1280 }, height: { ideal: 720 } },
+        audio: false
+      }).then(function(stream) {
+        activeStream = stream;
+        video.srcObject = stream;
+        return new Promise(function(resolve, reject) {
+          video.onloadedmetadata = function() {
+            video.play().then(resolve).catch(reject);
+          };
+          video.onerror = reject;
+        });
+      });
+    }
+
+    function stopCamera() {
+      if (activeStream) {
+        activeStream.getTracks().forEach(function(t) { t.stop(); });
+        activeStream = null;
+      }
+      video.srcObject = null;
+      if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+      window.dispatchEvent(new CustomEvent('polymetron:camerastop'));
+    }
+
+    /* ============================================================
+       CANVAS SIZING
+    ============================================================ */
+    function syncCanvasDims() {
+      if (video.videoWidth > 0) {
+        overlay.width  = video.videoWidth;
+        overlay.height = video.videoHeight;
+      }
+    }
+
+    window.addEventListener('resize', syncCanvasDims);
+    window.addEventListener('orientationchange', function() {
+      setTimeout(syncCanvasDims, 300);
     });
 
-    loadHotspots();
+    /* ============================================================
+       MODEL LOAD
+    ============================================================ */
+    function loadModel() {
+      return Promise.resolve()
+        .then(function() {
+          return tf.setBackend('webgl');
+        })
+        .catch(function() {
+          /* webgl not available — let tf.ready() auto-select */
+        })
+        .then(function() {
+          return tf.ready();
+        })
+        .then(function() {
+          return cocoSsd.load();
+        });
+    }
+
+    /* ============================================================
+       DRAWING
+    ============================================================ */
+    function drawPredictions(predictions) {
+      ctx.clearRect(0, 0, overlay.width, overlay.height);
+
+      predictions.forEach(function(p) {
+        if (p.score < CONF_THRESHOLD) return;
+
+        var group = CATEGORY_MAP[p.class] || 'other';
+        var color = GROUP_COLORS[group] || DEFAULT_COLOR;
+
+        var x = p.bbox[0];
+        var y = p.bbox[1];
+        var w = p.bbox[2];
+        var h = p.bbox[3];
+
+        /* Bounding box */
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.strokeRect(x, y, w, h);
+
+        /* Label background */
+        var label = p.class + ' ' + (p.score * 100).toFixed(0) + '%';
+        ctx.font = '500 12px "JetBrains Mono", monospace';
+        var textW = ctx.measureText(label).width;
+        var padH = 4;
+        var padV = 3;
+        var labelH = 18;
+
+        ctx.fillStyle = color;
+        ctx.globalAlpha = 0.85;
+        ctx.fillRect(x - 1, y - labelH - padV * 2, textW + padH * 2, labelH + padV);
+        ctx.globalAlpha = 1;
+
+        /* Label text */
+        ctx.fillStyle = '#fff';
+        ctx.fillText(label, x + padH - 1, y - padV - 2);
+      });
+    }
+
+    /* ============================================================
+       COUNTER UPDATE
+    ============================================================ */
+    function updateCounters(predictions) {
+      var counts = { people: 0, vehicles: 0, infrastructure: 0 };
+
+      predictions.forEach(function(p) {
+        if (p.score < CONF_THRESHOLD) return;
+        var g = CATEGORY_MAP[p.class];
+        if (g === 'people')         counts.people++;
+        else if (g === 'vehicles')  counts.vehicles++;
+        else if (g === 'infrastructure') counts.infrastructure++;
+      });
+
+      cntPeople.textContent   = counts.people;
+      cntVehicles.textContent = counts.vehicles;
+      cntInfra.textContent    = counts.infrastructure;
+    }
+
+    /* ============================================================
+       ACTIVITY TREND (60-second rolling sparkline)
+    ============================================================ */
+    function updateActivityTrend(visibleCount) {
+      var nowSec = Math.floor(Date.now() / 1000);
+      var idx = nowSec % TREND_WINDOW_S;
+      if (idx !== activityCurrentSec) {
+        /* New second: overwrite the cell. The previous occupant has
+           rolled out of the 60s window. */
+        activityCurrentSec = idx;
+        activityHistory[idx] = visibleCount;
+      } else if (visibleCount > activityHistory[idx]) {
+        /* Same second: keep the peak so the bar shows the busiest
+           moment, not the latest sample. */
+        activityHistory[idx] = visibleCount;
+      }
+      if (visibleCount > activityPeak) activityPeak = visibleCount;
+    }
+
+    function renderTrend() {
+      var nowSec = Math.floor(Date.now() / 1000);
+      var localMax = 1;
+      var bars = new Array(TREND_WINDOW_S);
+
+      /* Walk chronologically so the rightmost bar is "now". */
+      for (var i = 0; i < TREND_WINDOW_S; i++) {
+        var srcIdx = (nowSec - (TREND_WINDOW_S - 1 - i)) % TREND_WINDOW_S;
+        if (srcIdx < 0) srcIdx += TREND_WINDOW_S;
+        var v = activityHistory[srcIdx];
+        bars[i] = v;
+        if (v > localMax) localMax = v;
+      }
+
+      var chunks = '';
+      var barW = 60 / TREND_WINDOW_S;
+      for (var j = 0; j < TREND_WINDOW_S; j++) {
+        var h = (bars[j] / localMax) * 34;
+        if (bars[j] > 0 && h < 1) h = 1;
+        var y = 38 - h;
+        var tip = (j === TREND_WINDOW_S - 1) ? ' class="tip"' : '';
+        chunks += '<rect' + tip + ' x="' + (j * barW).toFixed(2) +
+          '" y="' + y.toFixed(2) + '" width="' + (barW - 0.12).toFixed(2) +
+          '" height="' + h.toFixed(2) + '"/>';
+      }
+
+      trendSparkline.innerHTML = chunks;
+      trendStat.textContent = 'peak ' + activityPeak;
+    }
+
+    /* ============================================================
+       INFERENCE LOOP
+    ============================================================ */
+    function loop() {
+      if (state !== 'live') return;
+
+      rafId = requestAnimationFrame(loop);
+
+      var now = performance.now();
+      if (now - lastInferenceTs < THROTTLE_MS) return;
+
+      /* Guard: video not ready */
+      if (video.readyState < 2 || video.videoWidth === 0) return;
+
+      lastInferenceTs = now;
+      var inferStart = performance.now();
+
+      model.detect(video).then(function(predictions) {
+        var latency = Math.round(performance.now() - inferStart);
+        statLatency.textContent = latency + ' ms';
+
+        predictions = predictions || [];
+
+        if (predictions.length === 0) {
+          ctx.clearRect(0, 0, overlay.width, overlay.height);
+        } else {
+          drawPredictions(predictions);
+        }
+        updateCounters(predictions);
+
+        /* Count visible (above threshold) detections for the trend */
+        var visibleCount = 0;
+        for (var k = 0; k < predictions.length; k++) {
+          if (predictions[k].score >= CONF_THRESHOLD) visibleCount++;
+        }
+        updateActivityTrend(visibleCount);
+
+        /* Throttle sparkline DOM updates to once per second */
+        if (now - lastTrendRenderMs > 1000) {
+          lastTrendRenderMs = now;
+          renderTrend();
+        }
+      }).catch(function(err) {
+        console.error('detect error:', err);
+      });
+    }
+
+    /* ============================================================
+       START HANDLER
+    ============================================================ */
+    startBtn.addEventListener('click', function() {
+      if (state === 'loading' || state === 'live') return;
+
+      /* Unlock iOS Safari speechSynthesis inside the user gesture
+         so the first real caption isn't silently swallowed. */
+      try {
+        if ('speechSynthesis' in window) {
+          var unlock = new SpeechSynthesisUtterance(' ');
+          unlock.volume = 0;
+          window.speechSynthesis.speak(unlock);
+        }
+      } catch (e) { /* noop */ }
+
+      setState('loading');
+
+      startCamera()
+        .then(function() {
+          syncCanvasDims();
+          return loadModel();
+        })
+        .then(function(loadedModel) {
+          model = loadedModel;
+          setState('live');
+          lastInferenceTs = 0;
+          activityHistory.fill(0);
+          activityPeak = 0;
+          activityCurrentSec = -1;
+          lastTrendRenderMs = 0;
+          renderTrend();
+          rafId = requestAnimationFrame(loop);
+        })
+        .catch(function(err) {
+          console.error('startup error:', err);
+
+          var msg;
+          if (err && err.name === 'NotAllowedError') {
+            msg = 'Camera access was denied. Please allow camera access and try again.';
+          } else if (err && err.name === 'NotFoundError') {
+            msg = 'No camera found on this device.';
+          } else if (err && err.name === 'NotReadableError') {
+            msg = 'Camera is in use by another app.';
+          } else if (err && err.message && err.message.toLowerCase().includes('model')) {
+            msg = 'Failed to load detection model. Check your connection and try again.';
+          } else {
+            msg = 'Could not start. ' + (err && err.message ? err.message : 'Unknown error.');
+          }
+
+          setState('error', msg);
+        });
+    });
+
+    /* ============================================================
+       VIDEO METADATA LISTENER (late resize guard)
+    ============================================================ */
+    video.addEventListener('loadedmetadata', syncCanvasDims);
+    video.addEventListener('resize', syncCanvasDims);
+
+    /* ============================================================
+       AUDIO TOGGLE (narration on / off)
+    ============================================================ */
+    window.polymetronAudioEnabled = true;
+    var audioToggle = document.getElementById('audioToggle');
+    audioToggle.addEventListener('click', function() {
+      window.polymetronAudioEnabled = !window.polymetronAudioEnabled;
+      audioToggle.classList.toggle('muted', !window.polymetronAudioEnabled);
+      var label = window.polymetronAudioEnabled ? 'Mute narration' : 'Unmute narration';
+      audioToggle.setAttribute('aria-label', label);
+      audioToggle.setAttribute('title', label);
+      if (!window.polymetronAudioEnabled && 'speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+    });
+
+    /* ============================================================
+       MODE TOGGLE (Food rescue / Public space)
+       The VLM module reads window.polymetronMode each tick.
+    ============================================================ */
+    window.polymetronMode = 'public_space';
+    var modeButtons = document.querySelectorAll('.mode-btn');
+    modeButtons.forEach(function(btn) {
+      btn.addEventListener('click', function() {
+        var nextMode = btn.getAttribute('data-mode');
+        if (nextMode === window.polymetronMode) return;
+        window.polymetronMode = nextMode;
+        modeButtons.forEach(function(b) {
+          var on = b.getAttribute('data-mode') === nextMode;
+          b.classList.toggle('active', on);
+          b.setAttribute('aria-selected', on ? 'true' : 'false');
+        });
+        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+        window.dispatchEvent(new CustomEvent('polymetron:modechange', { detail: { mode: nextMode } }));
+      });
+    });
+
+    /* ============================================================
+       INIT
+    ============================================================ */
+    setState('idle');
+  </script>
+
+  <!-- ============================================================
+       VLM MODULE: SmolVLM-256M-Instruct for live scene captioning
+       + Web Speech API for spoken narration.
+       Runs entirely on-device. Loads after COCO-SSD so the bbox
+       loop remains interactive while the VLM warms up.
+
+       To try Apple FastVLM-0.5B instead, change MODEL_ID below to
+       "onnx-community/FastVLM-0.5B-ONNX". Note: heavier first load,
+       sharpest gains on iOS 26+ WebGPU.
+  ============================================================ -->
+  <script type="module">
+    import {
+      AutoProcessor,
+      AutoModelForVision2Seq,
+      AutoModelForImageTextToText,
+      RawImage,
+    } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5';
+
+    const MODEL_ID            = 'HuggingFaceTB/SmolVLM-256M-Instruct';
+    const CAPTION_INTERVAL_MS = 4500;
+    const FRAME_SIZE          = 384;
+    const MAX_NEW_TOKENS      = 48;
+    const MAX_HISTORY         = 5;
+
+    const MODE_ICONS = { food_rescue: '🍞', public_space: '🏙' };
+
+    /* Prompt registry. window.polymetronMode picks which one runs.
+       Tuned short and direct because SmolVLM-256M follows simple
+       imperatives better than verbose instructions. */
+    const PROMPTS = {
+      food_rescue:
+        'Look at this scene. If you see food, describe it in one short sentence and say if it looks leftover, partially eaten, or surplus. If there is no food, say "No food visible." No preamble.',
+      public_space:
+        'Describe this public space in one short sentence. If anything looks broken, blocked, missing, or unsafe, mention it. No preamble.',
+    };
+
+    const MODE_LABELS = {
+      food_rescue:  'Food rescue',
+      public_space: 'Public space',
+    };
+
+    function getCurrentMode() {
+      return window.polymetronMode || 'public_space';
+    }
+
+    function getCurrentPrompt() {
+      return PROMPTS[getCurrentMode()] || PROMPTS.public_space;
+    }
+
+    const captionStatusEl  = document.getElementById('captionStatus');
+    const captionTextEl    = document.getElementById('captionText');
+    const statVlmBackendEl = document.getElementById('statVlmBackend');
+    const statVlmLatencyEl = document.getElementById('statVlmLatency');
+
+    let processor    = null;
+    let model        = null;
+    let backend      = null;
+    let captioning   = false;
+    let captionTimer = null;
+    let lastCaption  = '';
+
+    /* Caption history: newest first, capped at MAX_HISTORY entries.
+       Renders into #historyList in the panel. */
+    const captionHistory = [];
+    const historyListEl  = document.getElementById('historyList');
+
+    function setStatus(text) {
+      captionStatusEl.textContent = text;
+    }
+
+    function setText(text, thinking) {
+      captionTextEl.textContent = text;
+      captionTextEl.classList.toggle('thinking', !!thinking);
+    }
+
+    async function loadModelOn(device) {
+      processor = await AutoProcessor.from_pretrained(MODEL_ID);
+      const opts = {
+        dtype: {
+          embed_tokens:         'fp16',
+          vision_encoder:       'fp16',
+          decoder_model_merged: 'q4',
+        },
+        device: device,
+      };
+      try {
+        model = await AutoModelForVision2Seq.from_pretrained(MODEL_ID, opts);
+      } catch (e1) {
+        model = await AutoModelForImageTextToText.from_pretrained(MODEL_ID, opts);
+      }
+    }
+
+    async function loadVLM() {
+      setStatus('Downloading SmolVLM (200 MB)');
+      setText('Loading vision-language model. First load is the slowest.', true);
+
+      try {
+        await loadModelOn('webgpu');
+        backend = 'webgpu';
+      } catch (e) {
+        console.warn('VLM WebGPU unavailable, trying WASM fallback:', e);
+        setStatus('WebGPU unavailable, using CPU');
+        try {
+          await loadModelOn('wasm');
+          backend = 'wasm';
+        } catch (e2) {
+          console.error('VLM load failed entirely:', e2);
+          setStatus('Vision-language model unavailable');
+          setText('Reasoning layer could not load on this device. Detection still running.', false);
+          throw e2;
+        }
+      }
+
+      statVlmBackendEl.textContent = 'smolvlm-256m · ' + backend;
+      setStatus('Warming up');
+
+      try {
+        const blank = document.createElement('canvas');
+        blank.width = FRAME_SIZE; blank.height = FRAME_SIZE;
+        const bctx = blank.getContext('2d');
+        bctx.fillStyle = '#000';
+        bctx.fillRect(0, 0, FRAME_SIZE, FRAME_SIZE);
+        const img = await RawImage.fromCanvas(blank);
+        const prompt = processor.apply_chat_template(
+          [{ role: 'user', content: [
+            { type: 'image' },
+            { type: 'text', text: 'Describe.' },
+          ]}],
+          { add_generation_prompt: true }
+        );
+        const inputs = await processor(img, prompt, { add_special_tokens: false });
+        await model.generate({ ...inputs, max_new_tokens: 5, do_sample: false });
+      } catch (e) {
+        console.warn('warmup failed (non-fatal):', e);
+      }
+
+      setStatus(MODE_LABELS[getCurrentMode()] + ' · Ready');
+      setText('Waiting for the first scene description', true);
+    }
+
+    async function captionFrame(videoEl) {
+      if (!model || !processor || captioning) return null;
+      if (videoEl.readyState < 2 || videoEl.videoWidth === 0) return null;
+
+      captioning = true;
+      const t0 = performance.now();
+
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = FRAME_SIZE;
+        canvas.height = FRAME_SIZE;
+        const cctx = canvas.getContext('2d');
+        cctx.drawImage(videoEl, 0, 0, FRAME_SIZE, FRAME_SIZE);
+        const img = await RawImage.fromCanvas(canvas);
+
+        const messages = [{
+          role: 'user',
+          content: [
+            { type: 'image' },
+            { type: 'text', text: getCurrentPrompt() },
+          ],
+        }];
+        const prompt = processor.apply_chat_template(messages, { add_generation_prompt: true });
+        const inputs = await processor(img, prompt, { add_special_tokens: false });
+
+        const out = await model.generate({
+          ...inputs,
+          max_new_tokens: MAX_NEW_TOKENS,
+          do_sample: false,
+        });
+
+        const decoded = processor.batch_decode(
+          out.slice(null, [inputs.input_ids.dims.at(-1), null]),
+          { skip_special_tokens: true }
+        )[0];
+
+        const latency = Math.round(performance.now() - t0);
+        statVlmLatencyEl.textContent = latency + ' ms';
+
+        return cleanCaption(decoded);
+      } finally {
+        captioning = false;
+      }
+    }
+
+    function cleanCaption(raw) {
+      if (!raw) return '';
+      let out = String(raw).trim();
+      out = out.replace(/^assistant[:\s]*/i, '');
+      out = out.replace(/^['"“‘]+|['"”’]+$/g, '');
+      out = out.trim();
+      if (out && !/[.!?]$/.test(out)) out += '.';
+      return out;
+    }
+
+    function escHtmlSafe(s) {
+      return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    }
+
+    function formatHistoryTime(d) {
+      const hh = String(d.getHours()).padStart(2, '0');
+      const mm = String(d.getMinutes()).padStart(2, '0');
+      const ss = String(d.getSeconds()).padStart(2, '0');
+      return hh + ':' + mm + ':' + ss;
+    }
+
+    function pushHistory(sentence, mode) {
+      captionHistory.unshift({
+        time: formatHistoryTime(new Date()),
+        text: sentence,
+        icon: MODE_ICONS[mode] || '·',
+      });
+      if (captionHistory.length > MAX_HISTORY) captionHistory.length = MAX_HISTORY;
+      renderHistory();
+    }
+
+    function renderHistory() {
+      if (captionHistory.length === 0) {
+        historyListEl.innerHTML = '<span class="history-empty">Waiting for first description&hellip;</span>';
+        return;
+      }
+      let html = '';
+      for (const entry of captionHistory) {
+        html += '<div class="history-item">'
+             +   '<span class="history-time">' + entry.time + '</span>'
+             +   '<span class="history-text">'
+             +     '<span class="history-mode">' + entry.icon + '</span>'
+             +     escHtmlSafe(entry.text)
+             +   '</span>'
+             + '</div>';
+      }
+      historyListEl.innerHTML = html;
+    }
+
+    function resetHistory() {
+      captionHistory.length = 0;
+      renderHistory();
+    }
+
+    function speak(text) {
+      if (!window.polymetronAudioEnabled) return;
+      if (!('speechSynthesis' in window)) return;
+      try {
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 0.95;
+        u.pitch = 1.0;
+        u.volume = 1.0;
+        window.speechSynthesis.speak(u);
+      } catch (e) {
+        console.warn('TTS failed:', e);
+      }
+    }
+
+    async function tick() {
+      const video = window.polymetronVideo;
+      if (!video) return;
+      const modeAtStart = getCurrentMode();
+      const sentence = await captionFrame(video);
+      /* Drop the caption if the user switched mode mid-inference. */
+      if (modeAtStart !== getCurrentMode()) return;
+      if (sentence && sentence !== lastCaption) {
+        lastCaption = sentence;
+        setText(sentence, false);
+        setStatus(MODE_LABELS[modeAtStart] + ' · Live');
+        speak(sentence);
+        pushHistory(sentence, modeAtStart);
+      }
+    }
+
+    async function startCaptionLoop() {
+      if (captionTimer) return;
+      if (!window.polymetronVideo) return;
+
+      /* Model load is idempotent. Skip if it is already in memory from
+         a prior session. */
+      if (!model) {
+        try {
+          await loadVLM();
+        } catch (e) {
+          return;
+        }
+      } else {
+        setStatus(MODE_LABELS[getCurrentMode()] + ' · Ready');
+        setText('Waiting for the first scene description', true);
+      }
+
+      tick();
+      captionTimer = setInterval(tick, CAPTION_INTERVAL_MS);
+    }
+
+    function stopCaptionLoop() {
+      if (captionTimer) {
+        clearInterval(captionTimer);
+        captionTimer = null;
+      }
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+      }
+      lastCaption = '';
+      resetHistory();
+    }
+
+    window.addEventListener('polymetron:cameralive', startCaptionLoop);
+    window.addEventListener('polymetron:camerastop', stopCaptionLoop);
+
+    /* User flipped Food rescue / Public space. Clear the current caption
+       and trigger an immediate re-tick with the new prompt so the next
+       sentence reflects the new job, not the next scheduled interval. */
+    window.addEventListener('polymetron:modechange', function() {
+      lastCaption = '';
+      setText(MODE_LABELS[getCurrentMode()] + ' mode. Generating a new description.', true);
+      setStatus(MODE_LABELS[getCurrentMode()] + ' · Switching');
+      if (model && !captioning) {
+        tick();
+      }
+    });
   </script>
 </body>
 </html>
