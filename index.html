@@ -186,7 +186,7 @@
       pointer-events: auto;
     }
 
-    /* Mobile: bottom sheet */
+    /* Mobile: bottom sheet, compact */
     @media (max-width: 768px) {
       #panel {
         top: auto;
@@ -194,15 +194,60 @@
         left: 0;
         bottom: 0;
         width: 100%;
-        height: 54vh;
+        height: 46vh;
+        max-height: 46vh;
         border-radius: 20px 20px 0 0;
         transform: translateY(100%);
         opacity: 1;
+        padding: 14px;
+        gap: 10px;
       }
 
       #panel.visible {
         animation: slideUp 0.3s ease forwards;
       }
+
+      /* Grab handle so the bottom sheet reads as draggable visually */
+      #panel::before {
+        content: '';
+        position: absolute;
+        top: 6px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 34px;
+        height: 3px;
+        border-radius: 2px;
+        background: rgba(210, 218, 223, 0.32);
+      }
+
+      /* Compact counter tiles */
+      .counter-value { font-size: 1.32rem; }
+      .counter-label { font-size: 0.58rem; }
+      .counter-tile { padding: 8px 6px; gap: 2px; }
+
+      /* Compact mode toggle */
+      .mode-btn { padding: 6px 6px; font-size: 0.68rem; }
+
+      /* Compact caption card: 3 lines max */
+      .caption-text {
+        font-size: 0.94rem;
+        max-height: 4.2em;
+      }
+      .caption-card { padding: 10px 12px; gap: 4px; }
+
+      /* Compact trend */
+      .trend-sparkline { height: 32px; }
+
+      /* Smaller history panel min */
+      .history-panel { min-height: 60px; gap: 4px; }
+      .history-item { padding-bottom: 6px; }
+      .history-text { font-size: 0.82rem; }
+      .history-time { font-size: 0.6rem; }
+
+      /* Stats compressed: keep labels, smaller font */
+      .stat-label { font-size: 0.55rem; }
+      .stat-value { font-size: 0.68rem; }
+      .stats { padding-top: 8px; gap: 4px 12px; }
     }
 
     /* ============================================================
@@ -763,7 +808,7 @@
         <span class="overlay-brand-sub">Edge Perception</span>
       </div>
 
-      <p class="overlay-headline">On-device computer vision that describes what it sees, out loud. No data leaves your phone.</p>
+      <p class="overlay-headline">An AI watches through your camera and describes the scene out loud. Your phone records nothing.</p>
 
       <p class="overlay-subhead" id="overlaySubhead">Tap to start your rear camera. The first model load is slow over LTE.</p>
 
@@ -1240,14 +1285,24 @@
        sharpest gains on iOS 26+ WebGPU.
   ============================================================ -->
   <script type="module">
-    import {
-      AutoProcessor,
-      AutoModelForVision2Seq,
-      AutoModelForImageTextToText,
-      RawImage,
-    } from 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5';
+    /* Wrap the whole module in async-IIFE so any failure (import,
+       runtime, model load) shows in the UI instead of silently dying.
+       iOS Safari swallows top-level named-import errors in a way that
+       leaves the user staring at "Initializing model" forever. */
+
+    const captionStatusEl  = document.getElementById('captionStatus');
+    const captionTextEl    = document.getElementById('captionText');
+    const statVlmBackendEl = document.getElementById('statVlmBackend');
+    const statVlmLatencyEl = document.getElementById('statVlmLatency');
+
+    /* Step 1: prove the module parsed. If the user is stuck on
+       "Initializing model" the script itself failed to execute. */
+    captionStatusEl.textContent = 'Module parsed · loading library';
+    captionTextEl.textContent = 'Fetching transformers.js from jsDelivr…';
+    console.log('[polymetron] VLM module entry, UA:', navigator.userAgent);
 
     const MODEL_ID            = 'HuggingFaceTB/SmolVLM-256M-Instruct';
+    const TRANSFORMERS_URL    = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5';
     const CAPTION_INTERVAL_MS = 4500;
     const FRAME_SIZE          = 384;
     const MAX_NEW_TOKENS      = 48;
@@ -1278,10 +1333,46 @@
       return PROMPTS[getCurrentMode()] || PROMPTS.public_space;
     }
 
-    const captionStatusEl  = document.getElementById('captionStatus');
-    const captionTextEl    = document.getElementById('captionText');
-    const statVlmBackendEl = document.getElementById('statVlmBackend');
-    const statVlmLatencyEl = document.getElementById('statVlmLatency');
+    /* Step 2: dynamic import. Catches CDN failures, MIME issues, and
+       named-export mismatches without taking the whole module down. */
+    let transformers;
+    try {
+      transformers = await import(TRANSFORMERS_URL);
+      console.log('[polymetron] transformers.js loaded, exports:', Object.keys(transformers).length);
+    } catch (e) {
+      console.error('[polymetron] transformers.js import failed:', e);
+      captionStatusEl.textContent = 'transformers.js import failed';
+      captionTextEl.textContent = 'Could not load the model library. ' + (e && e.message ? e.message.slice(0, 160) : 'Unknown error.');
+      throw e;
+    }
+
+    /* Step 3: resolve Auto classes dynamically. If transformers.js
+       changed an export name between minor versions this still works
+       as long as ANY supported class is present. */
+    const AutoProcessor               = transformers.AutoProcessor;
+    const RawImage                    = transformers.RawImage;
+    const AutoModelForImageTextToText = transformers.AutoModelForImageTextToText;
+    const AutoModelForVision2Seq      = transformers.AutoModelForVision2Seq;
+
+    if (!AutoProcessor || !RawImage || (!AutoModelForImageTextToText && !AutoModelForVision2Seq)) {
+      const missing = [
+        !AutoProcessor && 'AutoProcessor',
+        !RawImage && 'RawImage',
+        (!AutoModelForImageTextToText && !AutoModelForVision2Seq) && 'AutoModel*',
+      ].filter(Boolean).join(', ');
+      console.error('[polymetron] Missing transformers.js exports:', missing);
+      captionStatusEl.textContent = 'transformers.js incompatible';
+      captionTextEl.textContent = 'Required exports missing: ' + missing;
+      throw new Error('Missing exports: ' + missing);
+    }
+
+    console.log('[polymetron] Auto classes available:', {
+      ImageTextToText: !!AutoModelForImageTextToText,
+      Vision2Seq: !!AutoModelForVision2Seq,
+    });
+
+    captionStatusEl.textContent = 'Ready · waiting for camera';
+    captionTextEl.textContent = 'Tap Start camera to begin.';
 
     let processor    = null;
     let model        = null;
@@ -1314,10 +1405,15 @@
         },
         device: device,
       };
+      /* Try the modern Auto class first (transformers.js v3 canonical
+         for VLMs). Some older mappings still register SmolVLM under
+         Vision2Seq, so fall back to that. If both fail, surface the
+         error to the UI rather than swallowing it. */
       try {
-        model = await AutoModelForVision2Seq.from_pretrained(MODEL_ID, opts);
-      } catch (e1) {
         model = await AutoModelForImageTextToText.from_pretrained(MODEL_ID, opts);
+      } catch (e1) {
+        console.warn('[polymetron] ImageTextToText load failed, trying Vision2Seq:', e1);
+        model = await AutoModelForVision2Seq.from_pretrained(MODEL_ID, opts);
       }
     }
 
@@ -1329,15 +1425,18 @@
         await loadModelOn('webgpu');
         backend = 'webgpu';
       } catch (e) {
-        console.warn('VLM WebGPU unavailable, trying WASM fallback:', e);
+        console.warn('[polymetron] WebGPU path failed, trying WASM fallback:', e);
         setStatus('WebGPU unavailable, using CPU');
         try {
           await loadModelOn('wasm');
           backend = 'wasm';
         } catch (e2) {
-          console.error('VLM load failed entirely:', e2);
-          setStatus('Vision-language model unavailable');
-          setText('Reasoning layer could not load on this device. Detection still running.', false);
+          console.error('[polymetron] VLM load failed entirely:', e2);
+          setStatus('Model unavailable');
+          /* Surface the actual error so a quick console / screenshot
+             tells us why on a phone where we cannot attach DevTools. */
+          const msg = (e2 && e2.message) ? e2.message.slice(0, 140) : 'unknown error';
+          setText('VLM could not load: ' + msg + '. Detection still running.', false);
           throw e2;
         }
       }
@@ -1546,6 +1645,15 @@
         tick();
       }
     });
+
+    /* Race safety: if the camera went live BEFORE this module finished
+       parsing from the CDN (slow phone networks make this real), the
+       cameralive event is gone and the listener above will never fire.
+       Catch it by hand. */
+    if (window.polymetronVideo) {
+      console.log('[polymetron] Camera already live at module load, starting caption loop now.');
+      startCaptionLoop();
+    }
   </script>
 </body>
 </html>
