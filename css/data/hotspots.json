@@ -1,67 +1,67 @@
 [
   {
     "id": "hs-1",
-    "title": "Daylight provision — Atlanta IBC §1010",
-    "kicker": "Why this opening, here, at this size",
+    "title": "Daylight provision, Atlanta IBC §1010",
+    "kicker": "Why this opening is the size it is",
     "position": "0 1 0",
     "normal": "0 0 1",
     "reasoning": [
-      { "tag": "code", "text": "Atlanta 2026 IBC §1010 requires 10 sq ft glazing per 200 sq ft floor area for habitable rooms (≥ 5% ratio)." },
-      { "tag": "site", "text": "Captured opening: ~8.4 sq ft. Floor area at this room: ~198 sq ft. Ratio: 4.2%." },
-      { "tag": "gap", "text": "Below requirement by 1.6 sq ft of glazing. Either re-spec the window, add a transom, or file for a §1009.4 variance." }
+      { "tag": "code", "text": "Atlanta 2026 IBC §1010 wants at least 10 sq ft of glazing for every 200 sq ft of habitable floor area. That works out to a 5% ratio." },
+      { "tag": "site", "text": "The opening we measured here is roughly 8.4 sq ft. The floor area is 198 sq ft. The ratio comes out to 4.2%." },
+      { "tag": "gap", "text": "About 1.6 sq ft short. Respec the window, add a transom, or file for a §1009.4 variance." }
     ],
-    "citations": ["Atlanta 2026 IBC §1010", "Captured dimensions (Polycam)"]
+    "citations": ["Atlanta 2026 IBC §1010", "Polycam dimensions"]
   },
   {
     "id": "hs-2",
-    "title": "FAR — 0.7 of 0.8 used",
-    "kicker": "How much more this parcel can hold",
+    "title": "FAR remaining on this parcel",
+    "kicker": "How much more it can hold",
     "position": "1 2 0",
     "normal": "0 1 0",
     "reasoning": [
-      { "tag": "zoning", "text": "Parcel zoned MR-3 in the Atlanta DPCD map. FAR cap: 0.8." },
-      { "tag": "built", "text": "Current build at this stage of construction: 0.7 FAR (incl. this addition)." },
-      { "tag": "headroom", "text": "0.1 FAR remaining ≈ ~3,200 sq ft for future expansion or vertical add." }
+      { "tag": "zoning", "text": "The parcel sits in MR-3 on the Atlanta DPCD zoning atlas, which caps FAR at 0.8." },
+      { "tag": "built", "text": "With this addition the build is at 0.7 FAR." },
+      { "tag": "headroom", "text": "Roughly 0.1 FAR of room left, about 3,200 sq ft, for whatever comes next." }
     ],
-    "citations": ["Atlanta DPCD Zoning Atlas", "Parcel ID — mock for demo"]
+    "citations": ["Atlanta DPCD Zoning Atlas", "Parcel ID is mocked for the demo"]
   },
   {
     "id": "hs-3",
-    "title": "MARTA TOD bonus — eligible",
-    "kicker": "Transit-oriented density unlock",
+    "title": "MARTA TOD bonus, eligible",
+    "kicker": "Transit overlay you can opt into",
     "position": "-1 1 1",
     "normal": "1 0 0",
     "reasoning": [
-      { "tag": "transit", "text": "Site is within 0.5 mi of MARTA rail (qualifies for Transit-Oriented Development overlay)." },
-      { "tag": "policy", "text": "TOD overlay permits +0.3 FAR bonus + reduces parking minimum to 0.5/unit." },
-      { "tag": "value", "text": "If pursued: unlocks ~9,600 additional sq ft on this parcel." }
+      { "tag": "transit", "text": "Site is within a half mile of MARTA rail, which qualifies it for the TOD overlay." },
+      { "tag": "policy", "text": "TOD opens up a 0.3 FAR bonus and drops parking minimums to half a space per unit." },
+      { "tag": "value", "text": "If you take it, that's roughly 9,600 more sq ft on this parcel." }
     ],
     "citations": ["MARTA System Map 2026", "Atlanta TOD Overlay Ordinance"]
   },
   {
     "id": "hs-4",
-    "title": "Load-bearing wall — restricts future floorplan",
-    "kicker": "What can't move without redesign",
+    "title": "Sidewalk frontage and pedestrian access",
+    "kicker": "What's happening on the street side",
     "position": "0 0 1",
     "normal": "0 0 1",
     "reasoning": [
-      { "tag": "structure", "text": "Wall identified as primary load-bearing — continuous from foundation, no beam visible above." },
-      { "tag": "alternative", "text": "Removal in renovation requires LVL header + posts. Estimated structural scope: $8–12k." },
-      { "tag": "implication", "text": "Constrains tenant flexibility. Worth flagging in marketing materials as 'fixed' before lease commitments." }
+      { "tag": "street", "text": "Frontage on this side is about 60 ft. Existing sidewalk is roughly 5 ft wide with no planted buffer." },
+      { "tag": "code", "text": "Atlanta's complete-streets policy expects 6 ft of sidewalk plus a planted buffer in this district." },
+      { "tag": "walk", "text": "Walkscore for the block sits around 78. Nearest signalized crossing is 40 ft south. Most foot traffic here uses a desire line instead of the crossing." }
     ],
-    "citations": ["Visual structural inference — verify with licensed PE before action"]
+    "citations": ["Atlanta Complete Streets Policy", "OSM sidewalk geometry", "Walkscore"]
   },
   {
     "id": "hs-5",
-    "title": "Tract demographics — ACS 2022",
+    "title": "Census tract the parcel sits in",
     "kicker": "Who lives within walking distance",
     "position": "1 0 -1",
     "normal": "0 1 0",
     "reasoning": [
-      { "tag": "acs", "text": "Tract median income $58k. 22% age 65+. 14% below poverty." },
-      { "tag": "implication", "text": "Affordability + accessibility matter — affects mix-of-uses pro forma." },
-      { "tag": "polymetron", "text": "This is the layer that bundles spatial + demographic + code into one reasoning chain. The differentiator." }
+      { "tag": "acs", "text": "Median household income in the tract is around $58k. About 22% of residents are 65 or older. 14% are below the poverty line." },
+      { "tag": "implication", "text": "Affordability and walkability both matter for the use mix you can put here." },
+      { "tag": "polymetron", "text": "This is the layer that ties the building, the street, and the tract together. None of the existing tools do all three in one place." }
     ],
-    "citations": ["ACS 2022 5-year estimates", "Census tract — mock for demo"]
+    "citations": ["ACS 2022 5-year", "Census tract is mocked for the demo"]
   }
 ]

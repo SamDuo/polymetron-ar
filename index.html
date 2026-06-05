@@ -3,23 +3,23 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>Off Season AR — Polymetron</title>
-  <meta name="description" content="Spatial computing for what's being built. Polymetron glass-box reasoning attached to captured spaces.">
+  <title>Polymetron</title>
+  <meta name="description" content="Polymetron captures buildings and streets with an iPhone and attaches the public rules and data behind them.">
   <link rel="stylesheet" href="css/styles.css">
   <script type="module" src="https://ajax.googleapis.com/ajax/libs/model-viewer/4.0.0/model-viewer.min.js"></script>
 </head>
 <body>
   <header>
     <div class="brand">Polymetron</div>
-    <div class="tagline">spatial computing for what's being built</div>
+    <div class="tagline">we map buildings and streets</div>
   </header>
 
   <main>
     <section class="wedge">
-      <h1>iPhone scans a real space.<br>Reasoning chains attach to every surface.<br>Anyone with an iPhone walks through it in their own room.</h1>
+      <h1>Point your iPhone at a building or a street. We attach the public rules and data behind it. Send the link and anyone can walk through it from their own phone.</h1>
       <p class="lede">
-        Tap a numbered dot for the citable reasoning behind it.
-        <span class="note">↓ On iPhone: tap <em>View in AR</em> to place this space in front of you.</span>
+        Tap any numbered dot. The reasoning chain opens with its sources.
+        <span class="note">If you're on iPhone, the View in AR button places the captured space in front of you.</span>
       </p>
     </section>
 
@@ -40,7 +40,7 @@
       loading="eager">
       <div slot="ar-button" class="ar-button">View in AR</div>
       <div slot="poster" class="poster-overlay">
-        <p class="hint">Loading captured space… <br><small>If this stays here, the asset hasn't been added yet (Phase 1).</small></p>
+        <p class="hint">Loading captured space. <br><small>If this stays here, the capture file hasn't been added yet.</small></p>
       </div>
     </model-viewer>
 
@@ -52,22 +52,17 @@
     </aside>
 
     <section class="wedge-bottom">
-      <h2>The gap in spatial computing</h2>
+      <h2>Why this and not generative</h2>
       <p>
-        Content, face, and lens are funded. <strong>What's being built</strong> is not.
-        Construction Tech and 3D vision for the built environment is the empty slot.
-        Polymetron fills it with a reasoning layer that survives technical due diligence —
-        every claim cites real code, real zoning, real public data.
+        Most spatial AI work right now is generative. Image to 3D, prompt to scene, video to world. That's a fine direction for content. It's the wrong direction for buildings and streets, where the consequence of a hallucinated detail is somebody losing money or somebody getting hurt. Polymetron goes the other way. The capture is real, the hotspots point to ordinances and census tracts you can look up yourself, and nothing in the reasoning chain is generated.
       </p>
       <p class="footnote">
-        Built on a working food-system platform deployed at Georgia Tech and the City of Atlanta
-        (30+ live data layers, real institutional partnerships).
-        The construction vertical is the next module on the same fabric.
+        We've been running a food-system mapping platform with Georgia Tech and the City of Atlanta for the past year. The team and the data pipeline are the same. Buildings and streets are what we're adding now.
       </p>
     </section>
   </main>
 
-  <footer><small>Off Season AR · Polymetron · Atlanta</small></footer>
+  <footer><small>Polymetron · Atlanta</small></footer>
 
   <script>
     const viewer = document.getElementById("viewer");
@@ -91,14 +86,14 @@
           viewer.appendChild(btn);
         });
       } catch {
-        panelContent.innerHTML = `<p class="hint">Hotspots appear after Phase 1 (capture + drop assets) and Phase 4 (positions).</p>`;
+        panelContent.innerHTML = `<p class="hint">Hotspots show up once the capture lands in assets and the positions are set in hotspots.json.</p>`;
       }
     }
 
     function openHotspot(h) {
       const chain = h.reasoning.map(r =>
         `<div class="chain-step"><span class="step-tag">${r.tag}</span><span class="step-text">${r.text}</span></div>`).join("");
-      const citations = h.citations ? `<div class="citations"><strong>Citations:</strong> ${h.citations.join(" · ")}</div>` : "";
+      const citations = h.citations ? `<div class="citations"><strong>Citations</strong> ${h.citations.join(", ")}</div>` : "";
       panelContent.innerHTML = `<h3>${h.title}</h3><p class="kicker">${h.kicker || ""}</p><div class="chain">${chain}</div>${citations}`;
       panel.classList.add("open");
     }
@@ -107,14 +102,14 @@
     window.dev = () => {
       devMode = !devMode;
       console.log(`%c[dev ${devMode ? "ON" : "OFF"}]`, "color:#00bfa5;font-weight:bold;",
-        devMode ? "Click model to log position + normal." : "");
+        devMode ? "Click model to log position and normal." : "");
       return devMode;
     };
     viewer.addEventListener("click", (event) => {
       if (!devMode) return;
       const rect = viewer.getBoundingClientRect();
       const hit = viewer.positionAndNormalFromPoint(event.clientX - rect.left, event.clientY - rect.top);
-      if (!hit) { console.log("[dev] miss — click off model"); return; }
+      if (!hit) { console.log("[dev] miss, click off model"); return; }
       const pos = `${hit.position.x.toFixed(3)} ${hit.position.y.toFixed(3)} ${hit.position.z.toFixed(3)}`;
       const norm = `${hit.normal.x.toFixed(3)} ${hit.normal.y.toFixed(3)} ${hit.normal.z.toFixed(3)}`;
       console.log(`%c[hotspot pick]`, "color:#00bfa5;font-weight:bold;", `\n  "position": "${pos}",\n  "normal":   "${norm}"`);
