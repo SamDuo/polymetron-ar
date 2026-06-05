@@ -1584,22 +1584,44 @@
           do_sample: false,
         });
 
-        /* Primary path: slice off the prompt prefix and decode the
-           generated tokens only. Some checkpoints emit just the
-           response (no prompt prefix in `out`) which makes the slice
-           empty — fall back to decoding the whole tensor and let
-           cleanCaption strip the assistant-role prefix. */
-        let decoded = processor.batch_decode(
-          out.slice(null, [inputs.input_ids.dims.at(-1), null]),
-          { skip_special_tokens: true }
-        )[0];
+        /* Decode in two passes, defensive against undefined access
+           paths. transformers.js shape exposure differs between
+           model families (`dims` vs `shape`, ndarray vs tensor) and
+           a missing property here was throwing "undefined is not an
+           object" on iOS Safari, killing the tick. */
+        let decoded = '';
+
+        try {
+          let promptLen = 0;
+          const ids = inputs && inputs.input_ids;
+          if (ids) {
+            const shape = ids.dims || ids.shape || ids.size;
+            if (shape && shape.length > 0) {
+              promptLen = shape[shape.length - 1] | 0;
+            }
+          }
+
+          if (promptLen > 0 && typeof out.slice === 'function') {
+            const sliced = out.slice(null, [promptLen, null]);
+            const dec = processor.batch_decode(sliced, { skip_special_tokens: true });
+            if (dec && dec[0]) decoded = dec[0];
+          }
+        } catch (sliceErr) {
+          console.warn('[polymetron] Sliced decode failed, will full-decode:', sliceErr);
+          decoded = '';
+        }
 
         if (!decoded || !decoded.trim()) {
-          const full = processor.batch_decode(out, { skip_special_tokens: true })[0];
-          console.log('[polymetron] Sliced output empty, full decode:', JSON.stringify(full));
-          decoded = full || '';
+          try {
+            const full = processor.batch_decode(out, { skip_special_tokens: true });
+            if (full && full[0]) decoded = full[0];
+            console.log('[polymetron] Full decode:', JSON.stringify(decoded));
+          } catch (fullErr) {
+            console.error('[polymetron] Full decode also failed:', fullErr);
+            decoded = '';
+          }
         } else {
-          console.log('[polymetron] VLM raw:', JSON.stringify(decoded));
+          console.log('[polymetron] Sliced decode:', JSON.stringify(decoded));
         }
 
         const latency = Math.round(performance.now() - t0);
@@ -1617,7 +1639,12 @@
     function cleanCaption(raw) {
       if (!raw) return '';
       let out = String(raw).trim();
-      out = out.replace(/^assistant[:\s]*/i, '');
+      /* Strip everything up to and including the assistant role marker
+         that some VLMs emit when we decode the full prompt+response. */
+      out = out.replace(/^[\s\S]*?<\|im_start\|>\s*assistant\s*/i, '');
+      out = out.replace(/^[\s\S]*?\bassistant\s*[:\n]\s*/i, '');
+      out = out.replace(/<\|im_end\|>/g, '');
+      out = out.replace(/<\|endoftext\|>/g, '');
       out = out.replace(/^['"“‘]+|['"”’]+$/g, '');
       out = out.trim();
       if (out && !/[.!?]$/.test(out)) out += '.';
