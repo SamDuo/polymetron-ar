@@ -747,7 +747,7 @@
           <div class="pulse-dot"></div>
           <span class="caption-status-text" id="captionStatus">Initializing model</span>
         </div>
-        <p class="caption-text thinking" id="captionText">Loading vision-language model&hellip;</p>
+        <p class="caption-text thinking" id="captionText">Generating&hellip;</p>
       </div>
 
       <!-- Activity trend: rolling 60-second window of total scene detections -->
@@ -1298,7 +1298,7 @@
     /* Step 1: prove the module parsed. If the user is stuck on
        "Initializing model" the script itself failed to execute. */
     captionStatusEl.textContent = 'Module parsed · loading library';
-    captionTextEl.textContent = 'Fetching transformers.js from jsDelivr…';
+    captionTextEl.textContent = 'Generating…';
     console.log('[polymetron] VLM module entry, UA:', navigator.userAgent);
 
     const MODEL_ID            = 'HuggingFaceTB/SmolVLM-256M-Instruct';
@@ -1372,7 +1372,7 @@
     });
 
     captionStatusEl.textContent = 'Ready · waiting for camera';
-    captionTextEl.textContent = 'Tap Start camera to begin.';
+    captionTextEl.textContent = 'Generating…';
 
     let processor    = null;
     let model        = null;
@@ -1419,7 +1419,7 @@
 
     async function loadVLM() {
       setStatus('Downloading SmolVLM (200 MB)');
-      setText('Loading vision-language model. First load is the slowest.', true);
+      setText('Generating…', true);
 
       try {
         await loadModelOn('webgpu');
@@ -1465,7 +1465,7 @@
       }
 
       setStatus(MODE_LABELS[getCurrentMode()] + ' · Ready');
-      setText('Waiting for the first scene description', true);
+      setText('Generating…', true);
     }
 
     async function captionFrame(videoEl) {
@@ -1612,7 +1612,7 @@
         }
       } else {
         setStatus(MODE_LABELS[getCurrentMode()] + ' · Ready');
-        setText('Waiting for the first scene description', true);
+        setText('Generating…', true);
       }
 
       tick();
@@ -1639,7 +1639,7 @@
        sentence reflects the new job, not the next scheduled interval. */
     window.addEventListener('polymetron:modechange', function() {
       lastCaption = '';
-      setText(MODE_LABELS[getCurrentMode()] + ' mode. Generating a new description.', true);
+      setText('Generating…', true);
       setStatus(MODE_LABELS[getCurrentMode()] + ' · Switching');
       if (model && !captioning) {
         tick();
