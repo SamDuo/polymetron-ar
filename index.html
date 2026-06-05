@@ -1346,6 +1346,18 @@
       throw e;
     }
 
+    /* Route every from_pretrained() fetch through our same-origin
+       /hf proxy. The Cloudflare Worker proxies to huggingface.co and
+       caches at the edge. This bypasses any network filter blocking
+       huggingface.co directly, which is the root cause we hit on the
+       user's iPhone testing. */
+    if (transformers.env) {
+      transformers.env.remoteHost       = window.location.origin;
+      transformers.env.remotePathTemplate = 'hf/{model}/resolve/{revision}';
+      transformers.env.allowLocalModels = false;
+      console.log('[polymetron] env routed via /hf proxy:', transformers.env.remoteHost);
+    }
+
     /* Step 3: resolve Auto classes dynamically. If transformers.js
        changed an export name between minor versions this still works
        as long as ANY supported class is present. */
@@ -1451,24 +1463,23 @@
       setStatus('Checking device');
       setText('Generating…', true);
 
-      /* Pre-flight: can the browser even reach huggingface.co?
-         Distinguishes a network/CORS problem from a model problem. A
-         "Load failed" error that fires before any download progress
-         is almost always THIS rather than the model itself. */
-      setStatus('Testing huggingface.co');
-      const probeUrl = 'https://huggingface.co/' + MODEL_ID + '/resolve/main/config.json';
+      /* Pre-flight: confirm our /hf proxy is up. If it returns 404 the
+         Cloudflare Worker is not deployed (wrangler.toml didn't take
+         effect) and we should tell the user to redeploy. */
+      setStatus('Testing model proxy');
+      const probeUrl = window.location.origin + '/hf/' + MODEL_ID + '/resolve/main/config.json';
       try {
         const r = await fetch(probeUrl, { method: 'GET', cache: 'no-store' });
         if (!r.ok) {
-          throw new Error('HTTP ' + r.status + ' from huggingface.co');
+          throw new Error('HTTP ' + r.status + ' from proxy');
         }
         await r.text();
-        console.log('[polymetron] HF reachable, config.json fetched');
+        console.log('[polymetron] Proxy reachable, config.json fetched via /hf');
       } catch (probeErr) {
-        console.error('[polymetron] HF unreachable:', probeErr);
-        setStatus('Cannot reach huggingface.co');
+        console.error('[polymetron] Proxy unreachable:', probeErr);
+        setStatus('Proxy not responding');
         const m = (probeErr && probeErr.message) ? probeErr.message.slice(0, 120) : 'unknown';
-        setText('Network blocked huggingface.co: ' + m + '. Try a different wifi or disable a content blocker.', false);
+        setText('Model proxy is not reachable: ' + m + '. The Cloudflare Worker may not be deployed yet.', false);
         throw probeErr;
       }
 

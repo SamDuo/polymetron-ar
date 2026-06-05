@@ -1,0 +1,9 @@
+src/
+wrangler.toml
+.assetsignore
+.gitignore
+.git/
+README.md
+DEPLOY.md
+CLAUDE.md
+node_modules/
