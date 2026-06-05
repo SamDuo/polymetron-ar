@@ -82,11 +82,11 @@ Three prompts in the `PROMPTS` registry (top of the VLM module script). The mode
 
 | Mode | Prompt focus | Default? |
 |---|---|---|
-| `public_space` | Describe scene in one sentence | **yes** |
-| `people` | Count people and describe what they are doing | no |
+| `public_space` | Describe scene in one sentence | no |
+| `people` | Count people and describe what they are doing | **yes** |
 | `food_rescue` | Identify any food in the scene; AFCN connector | no |
 
-`people` was added specifically for in-person event demos (lots of people in frame, the prompt produces "I see N people doing X" outputs that are reliable and demo-friendly).
+`people` is the default because the demo lands at in-person events where lots of people are in frame. The prompt produces "I see N people doing X" outputs that are reliable and demo-friendly. After the event, swap the default back to `public_space` by changing `window.polymetronMode` and the `.active` class on the corresponding `.mode-btn`.
 
 Switching mode dispatches `polymetron:modechange`, which clears the current caption and triggers an immediate re-tick so the next sentence reflects the new prompt without waiting for the 4.5 s interval. Mid-inference swaps drop the stale caption to keep UI and prompt in sync.
 

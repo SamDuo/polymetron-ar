@@ -733,10 +733,10 @@
 
       <!-- Mode toggle: tells the VLM what job to do -->
       <div class="mode-toggle" role="tablist" aria-label="Caption mode">
-        <button class="mode-btn active" id="modePublic" data-mode="public_space" role="tab" aria-selected="true">
+        <button class="mode-btn" id="modePublic" data-mode="public_space" role="tab" aria-selected="false">
           <span class="mode-icon">🏙</span>Public space
         </button>
-        <button class="mode-btn" id="modePeople" data-mode="people" role="tab" aria-selected="false">
+        <button class="mode-btn active" id="modePeople" data-mode="people" role="tab" aria-selected="true">
           <span class="mode-icon">👥</span>People
         </button>
         <button class="mode-btn" id="modeFood" data-mode="food_rescue" role="tab" aria-selected="false">
@@ -1254,7 +1254,7 @@
        MODE TOGGLE (Food rescue / Public space)
        The VLM module reads window.polymetronMode each tick.
     ============================================================ */
-    window.polymetronMode = 'public_space';
+    window.polymetronMode = 'people';
     var modeButtons = document.querySelectorAll('.mode-btn');
     modeButtons.forEach(function(btn) {
       btn.addEventListener('click', function() {
@@ -1332,11 +1332,11 @@
     };
 
     function getCurrentMode() {
-      return window.polymetronMode || 'public_space';
+      return window.polymetronMode || 'people';
     }
 
     function getCurrentPrompt() {
-      return PROMPTS[getCurrentMode()] || PROMPTS.public_space;
+      return PROMPTS[getCurrentMode()] || PROMPTS.people;
     }
 
     /* Step 2: dynamic import. Catches CDN failures, MIME issues, and
