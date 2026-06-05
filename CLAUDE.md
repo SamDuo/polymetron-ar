@@ -78,12 +78,15 @@ Five-entry FIFO of caption objects: `{ time, text, icon }`. The icon comes from 
 
 ## Caption modes
 
-Two prompts in the `PROMPTS` registry (top of the VLM module script). The mode toggle in the panel switches between them at runtime.
+Three prompts in the `PROMPTS` registry (top of the VLM module script). The mode toggle in the panel switches between them at runtime.
 
 | Mode | Prompt focus | Default? |
 |---|---|---|
-| `public_space` | Describe scene; flag broken / blocked / missing / unsafe | **yes** |
-| `food_rescue` | Describe food; flag leftover / partial / surplus; AFCN connector | no |
+| `public_space` | Describe scene in one sentence | **yes** |
+| `people` | Count people and describe what they are doing | no |
+| `food_rescue` | Identify any food in the scene; AFCN connector | no |
+
+`people` was added specifically for in-person event demos (lots of people in frame, the prompt produces "I see N people doing X" outputs that are reliable and demo-friendly).
 
 Switching mode dispatches `polymetron:modechange`, which clears the current caption and triggers an immediate re-tick so the next sentence reflects the new prompt without waiting for the 4.5 s interval. Mid-inference swaps drop the stale caption to keep UI and prompt in sync.
 

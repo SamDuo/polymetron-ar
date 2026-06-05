@@ -598,7 +598,7 @@
     .mode-toggle {
       flex-shrink: 0;
       display: grid;
-      grid-template-columns: 1fr 1fr;
+      grid-template-columns: 1fr 1fr 1fr;
       gap: 6px;
       padding: 4px;
       background: rgba(28, 92, 132, 0.10);
@@ -733,11 +733,14 @@
 
       <!-- Mode toggle: tells the VLM what job to do -->
       <div class="mode-toggle" role="tablist" aria-label="Caption mode">
-        <button class="mode-btn" id="modeFood" data-mode="food_rescue" role="tab" aria-selected="false">
-          <span class="mode-icon">🍞</span>Food rescue
-        </button>
         <button class="mode-btn active" id="modePublic" data-mode="public_space" role="tab" aria-selected="true">
           <span class="mode-icon">🏙</span>Public space
+        </button>
+        <button class="mode-btn" id="modePeople" data-mode="people" role="tab" aria-selected="false">
+          <span class="mode-icon">👥</span>People
+        </button>
+        <button class="mode-btn" id="modeFood" data-mode="food_rescue" role="tab" aria-selected="false">
+          <span class="mode-icon">🍞</span>Food rescue
         </button>
       </div>
 
@@ -1308,21 +1311,24 @@
     const MAX_NEW_TOKENS      = 48;
     const MAX_HISTORY         = 5;
 
-    const MODE_ICONS = { food_rescue: '🍞', public_space: '🏙' };
+    const MODE_ICONS = { food_rescue: '🍞', public_space: '🏙', people: '👥' };
 
     /* Prompt registry. window.polymetronMode picks which one runs.
        Kept simple. Earlier prompts with "No preamble" instructions
        seemed to make SmolVLM emit empty strings on some inputs. */
     const PROMPTS = {
-      food_rescue:
-        'Do you see any food in this image? Describe what you see in one sentence.',
       public_space:
         'Describe what you see in this image in one sentence.',
+      people:
+        'How many people do you see in this image, and what are they doing? Answer in one sentence.',
+      food_rescue:
+        'Do you see any food in this image? Describe what you see in one sentence.',
     };
 
     const MODE_LABELS = {
-      food_rescue:  'Food rescue',
       public_space: 'Public space',
+      people:       'People',
+      food_rescue:  'Food rescue',
     };
 
     function getCurrentMode() {
