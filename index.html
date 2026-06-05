@@ -1311,13 +1311,13 @@
     const MODE_ICONS = { food_rescue: '🍞', public_space: '🏙' };
 
     /* Prompt registry. window.polymetronMode picks which one runs.
-       Tuned short and direct because SmolVLM-256M follows simple
-       imperatives better than verbose instructions. */
+       Kept simple. Earlier prompts with "No preamble" instructions
+       seemed to make SmolVLM emit empty strings on some inputs. */
     const PROMPTS = {
       food_rescue:
-        'Look at this scene. If you see food, describe it in one short sentence and say if it looks leftover, partially eaten, or surplus. If there is no food, say "No food visible." No preamble.',
+        'Do you see any food in this image? Describe what you see in one sentence.',
       public_space:
-        'Describe this public space in one short sentence. If anything looks broken, blocked, missing, or unsafe, mention it. No preamble.',
+        'Describe what you see in this image in one sentence.',
     };
 
     const MODE_LABELS = {
@@ -1575,10 +1575,23 @@
           do_sample: false,
         });
 
-        const decoded = processor.batch_decode(
+        /* Primary path: slice off the prompt prefix and decode the
+           generated tokens only. Some checkpoints emit just the
+           response (no prompt prefix in `out`) which makes the slice
+           empty — fall back to decoding the whole tensor and let
+           cleanCaption strip the assistant-role prefix. */
+        let decoded = processor.batch_decode(
           out.slice(null, [inputs.input_ids.dims.at(-1), null]),
           { skip_special_tokens: true }
         )[0];
+
+        if (!decoded || !decoded.trim()) {
+          const full = processor.batch_decode(out, { skip_special_tokens: true })[0];
+          console.log('[polymetron] Sliced output empty, full decode:', JSON.stringify(full));
+          decoded = full || '';
+        } else {
+          console.log('[polymetron] VLM raw:', JSON.stringify(decoded));
+        }
 
         const latency = Math.round(performance.now() - t0);
         statVlmLatencyEl.textContent = latency + ' ms';
@@ -1658,14 +1671,31 @@
       }
     }
 
+    let tickAttempts = 0;
+
     async function tick() {
       const video = window.polymetronVideo;
       if (!video) return;
       const modeAtStart = getCurrentMode();
+
+      tickAttempts++;
+      setStatus(MODE_LABELS[modeAtStart] + ' · Inferring (' + tickAttempts + ')');
+
       const sentence = await captionFrame(video);
+
       /* Drop the caption if the user switched mode mid-inference. */
       if (modeAtStart !== getCurrentMode()) return;
-      if (sentence && sentence !== lastCaption) {
+
+      if (!sentence) {
+        /* Model produced nothing after cleaning. Surface this so the
+           caption card doesn't just sit on "Generating…" silently. */
+        console.warn('[polymetron] Empty caption from model on tick', tickAttempts);
+        setText('Model returned empty. Try moving the camera or switching mode.', true);
+        setStatus(MODE_LABELS[modeAtStart] + ' · Empty output');
+        return;
+      }
+
+      if (sentence !== lastCaption) {
         lastCaption = sentence;
         setText(sentence, false);
         setStatus(MODE_LABELS[modeAtStart] + ' · Live');
