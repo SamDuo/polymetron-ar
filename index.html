@@ -1557,6 +1557,9 @@
       captioning = true;
       const t0 = performance.now();
 
+      /* Outer try/finally guarantees the captioning lock is released
+         even on error. Inner catch logs the error before re-throwing
+         so tick() can surface it to the UI. */
       try {
         const canvas = document.createElement('canvas');
         canvas.width = FRAME_SIZE;
@@ -1603,6 +1606,9 @@
         statVlmLatencyEl.textContent = latency + ' ms';
 
         return cleanCaption(decoded);
+      } catch (innerErr) {
+        console.error('[polymetron] model.generate error:', innerErr);
+        throw innerErr;
       } finally {
         captioning = false;
       }
@@ -1678,6 +1684,7 @@
     }
 
     let tickAttempts = 0;
+    let consecutiveErrors = 0;
 
     async function tick() {
       const video = window.polymetronVideo;
@@ -1687,7 +1694,30 @@
       tickAttempts++;
       setStatus(MODE_LABELS[modeAtStart] + ' · Inferring (' + tickAttempts + ')');
 
-      const sentence = await captionFrame(video);
+      /* Catch any model error here. Previously a throw inside
+         captionFrame propagated to setInterval and was silently
+         swallowed, leaving the caption card stuck on "Generating…"
+         while the counter kept climbing. */
+      let sentence;
+      try {
+        sentence = await captionFrame(video);
+        consecutiveErrors = 0;
+      } catch (e) {
+        consecutiveErrors++;
+        console.error('[polymetron] tick error', tickAttempts, e);
+        const msg = (e && e.message) ? e.message.slice(0, 100) : 'unknown';
+        setText('Inference error #' + consecutiveErrors + ': ' + msg, false);
+        setStatus(MODE_LABELS[modeAtStart] + ' · Error');
+        /* Stop the loop after enough back-to-back failures so we don't
+           burn the phone retrying a broken state. */
+        if (consecutiveErrors >= 3 && captionTimer) {
+          clearInterval(captionTimer);
+          captionTimer = null;
+          console.error('[polymetron] Stopping caption loop after 3 consecutive errors');
+          setStatus('Stopped after errors');
+        }
+        return;
+      }
 
       /* Drop the caption if the user switched mode mid-inference. */
       if (modeAtStart !== getCurrentMode()) return;
