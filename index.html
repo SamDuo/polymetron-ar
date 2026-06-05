@@ -1395,20 +1395,50 @@
       captionTextEl.classList.toggle('thinking', !!thinking);
     }
 
-    async function loadModelOn(device) {
-      processor = await AutoProcessor.from_pretrained(MODEL_ID);
-      const opts = {
-        dtype: {
-          embed_tokens:         'fp16',
-          vision_encoder:       'fp16',
-          decoder_model_merged: 'q4',
-        },
-        device: device,
+    /* WebGPU feature detection. On iOS 17/18 Safari and most current
+       iPhones, navigator.gpu is undefined and we should skip straight
+       to WASM. Trying WebGPU on a device that does not support it
+       sometimes leaves transformers.js in a half-initialized state. */
+    async function detectWebGPU() {
+      if (typeof navigator === 'undefined' || !navigator.gpu) return false;
+      try {
+        const adapter = await navigator.gpu.requestAdapter();
+        return !!adapter;
+      } catch (e) {
+        console.warn('[polymetron] WebGPU adapter request threw:', e);
+        return false;
+      }
+    }
+
+    function makeProgressCallback() {
+      const seen = new Map();
+      return function(data) {
+        if (!data || !data.file) return;
+        if (data.status === 'progress' && typeof data.progress === 'number') {
+          const file = data.file.split('/').pop().replace(/\.onnx$/i, '').slice(0, 20);
+          const pct = Math.round(data.progress);
+          /* Don't spam — only update the status when the percent moves */
+          const last = seen.get(file) || -1;
+          if (pct - last >= 5 || pct === 100) {
+            seen.set(file, pct);
+            captionStatusEl.textContent = file + ' ' + pct + '%';
+          }
+        } else if (data.status === 'done') {
+          captionStatusEl.textContent = 'Compiling model';
+        }
       };
-      /* Try the modern Auto class first (transformers.js v3 canonical
-         for VLMs). Some older mappings still register SmolVLM under
-         Vision2Seq, so fall back to that. If both fail, surface the
-         error to the UI rather than swallowing it. */
+    }
+
+    async function loadModelOn(device, progress_callback) {
+      const opts = {
+        /* q4 across the board. Total download is ~70 MB vs ~200 MB
+           for fp16, so iOS Safari is far less likely to drop a fetch
+           midway. Quality difference on short scene captions is minor. */
+        dtype: 'q4',
+        device: device,
+        progress_callback: progress_callback,
+      };
+      processor = await AutoProcessor.from_pretrained(MODEL_ID, { progress_callback });
       try {
         model = await AutoModelForImageTextToText.from_pretrained(MODEL_ID, opts);
       } catch (e1) {
@@ -1418,26 +1448,40 @@
     }
 
     async function loadVLM() {
-      setStatus('Downloading SmolVLM (200 MB)');
+      setStatus('Checking device');
       setText('Generating…', true);
 
-      try {
-        await loadModelOn('webgpu');
-        backend = 'webgpu';
-      } catch (e) {
-        console.warn('[polymetron] WebGPU path failed, trying WASM fallback:', e);
-        setStatus('WebGPU unavailable, using CPU');
+      const hasWebGPU = await detectWebGPU();
+      console.log('[polymetron] WebGPU available:', hasWebGPU);
+
+      const progressCallback = makeProgressCallback();
+
+      if (hasWebGPU) {
         try {
-          await loadModelOn('wasm');
+          setStatus('Loading SmolVLM · WebGPU');
+          await loadModelOn('webgpu', progressCallback);
+          backend = 'webgpu';
+        } catch (e) {
+          console.warn('[polymetron] WebGPU load failed, retrying on CPU:', e);
+          setStatus('WebGPU failed, retrying on CPU');
+          /* Wipe any half-initialized refs from the failed WebGPU pass */
+          processor = null;
+          model = null;
+        }
+      } else {
+        setStatus('Loading SmolVLM · CPU');
+      }
+
+      if (!model) {
+        try {
+          await loadModelOn('wasm', progressCallback);
           backend = 'wasm';
-        } catch (e2) {
-          console.error('[polymetron] VLM load failed entirely:', e2);
+        } catch (e) {
+          console.error('[polymetron] WASM load failed:', e);
           setStatus('Model unavailable');
-          /* Surface the actual error so a quick console / screenshot
-             tells us why on a phone where we cannot attach DevTools. */
-          const msg = (e2 && e2.message) ? e2.message.slice(0, 140) : 'unknown error';
+          const msg = (e && e.message) ? e.message.slice(0, 140) : 'unknown error';
           setText('VLM could not load: ' + msg + '. Detection still running.', false);
-          throw e2;
+          throw e;
         }
       }
 
