@@ -1306,9 +1306,9 @@
 
     const MODEL_ID            = 'HuggingFaceTB/SmolVLM-256M-Instruct';
     const TRANSFORMERS_URL    = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5';
-    const CAPTION_INTERVAL_MS = 6000;
-    const FRAME_SIZE          = 256;
-    const MAX_NEW_TOKENS      = 32;
+    const CAPTION_INTERVAL_MS = 10000;
+    const FRAME_SIZE          = 192;
+    const MAX_NEW_TOKENS      = 24;
     const MAX_HISTORY         = 5;
 
     const MODE_ICONS = { food_rescue: '🍞', public_space: '🏙', people: '👥' };
@@ -1413,11 +1413,21 @@
       captionTextEl.classList.toggle('thinking', !!thinking);
     }
 
-    /* WebGPU feature detection. On iOS 17/18 Safari and most current
-       iPhones, navigator.gpu is undefined and we should skip straight
-       to WASM. Trying WebGPU on a device that does not support it
-       sometimes leaves transformers.js in a half-initialized state. */
+    /* WebGPU feature detection. On iOS Safari we force-skip even if
+       navigator.gpu happens to exist, because WebGPU on iOS is still
+       crashy mid-inference and the user has been experiencing the
+       tab killing itself. WASM is slower but stable. */
+    function isIOS() {
+      const ua = navigator.userAgent || '';
+      const iPadOnDesktopUA = ua.includes('Mac') && (navigator.maxTouchPoints || 0) > 1;
+      return /iPad|iPhone|iPod/.test(ua) || iPadOnDesktopUA;
+    }
+
     async function detectWebGPU() {
+      if (isIOS()) {
+        console.log('[polymetron] iOS detected, forcing WASM (WebGPU disabled)');
+        return false;
+      }
       if (typeof navigator === 'undefined' || !navigator.gpu) return false;
       try {
         const adapter = await navigator.gpu.requestAdapter();
