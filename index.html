@@ -1304,25 +1304,58 @@
     captionTextEl.textContent = 'Generating…';
     console.log('[polymetron] VLM module entry, UA:', navigator.userAgent);
 
-    const MODEL_ID            = 'HuggingFaceTB/SmolVLM-256M-Instruct';
-    const TRANSFORMERS_URL    = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5';
-    const CAPTION_INTERVAL_MS = 10000;
-    const FRAME_SIZE          = 192;
-    const MAX_NEW_TOKENS      = 24;
-    const MAX_HISTORY         = 5;
+    const TRANSFORMERS_URL = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5';
+    const MAX_HISTORY      = 5;
+
+    /* Device-aware config. Desktop has plenty of RAM and a real GPU,
+       so we run bigger frames, fp16 weights, and a 3 s loop. Mobile
+       keeps the conservative q4 + small-frame + slow-interval settings
+       because iOS Safari kills tabs that breach ~1.5 GB. */
+    const _ua = (navigator && navigator.userAgent) || '';
+    const _isMobile =
+      /iPad|iPhone|iPod|Android|Mobile/i.test(_ua) ||
+      (/Mac/.test(_ua) && (navigator.maxTouchPoints || 0) > 1);
+
+    const CONFIG = _isMobile ? {
+      MODEL_ID:            'HuggingFaceTB/SmolVLM-256M-Instruct',
+      MODEL_LABEL:         'smolvlm-256m',
+      FRAME_SIZE:          192,
+      MAX_NEW_TOKENS:      24,
+      CAPTION_INTERVAL_MS: 10000,
+      DTYPE:               'q4',
+    } : {
+      MODEL_ID:            'HuggingFaceTB/SmolVLM-256M-Instruct',
+      MODEL_LABEL:         'smolvlm-256m',
+      FRAME_SIZE:          384,
+      MAX_NEW_TOKENS:      48,
+      CAPTION_INTERVAL_MS: 3000,
+      DTYPE: {
+        embed_tokens:         'fp16',
+        vision_encoder:       'fp16',
+        decoder_model_merged: 'fp16',
+      },
+    };
+
+    const MODEL_ID            = CONFIG.MODEL_ID;
+    const FRAME_SIZE          = CONFIG.FRAME_SIZE;
+    const MAX_NEW_TOKENS      = CONFIG.MAX_NEW_TOKENS;
+    const CAPTION_INTERVAL_MS = CONFIG.CAPTION_INTERVAL_MS;
+
+    console.log('[polymetron] Device path:', _isMobile ? 'mobile' : 'desktop', CONFIG);
 
     const MODE_ICONS = { food_rescue: '🍞', public_space: '🏙', people: '👥' };
 
-    /* Prompt registry. window.polymetronMode picks which one runs.
-       Kept simple. Earlier prompts with "No preamble" instructions
-       seemed to make SmolVLM emit empty strings on some inputs. */
+    /* Prompt registry. Reworked because earlier "How many people"
+       framing made SmolVLM emit bare numbers ("2") instead of full
+       sentences. Direct describe-the-scene prompts produce cleaner
+       outputs across all three modes. */
     const PROMPTS = {
       public_space:
-        'Describe what you see in this image in one sentence.',
+        'Describe this scene in one sentence.',
       people:
-        'How many people do you see in this image, and what are they doing? Answer in one sentence.',
+        'Describe the people in this image and what they are doing in one sentence.',
       food_rescue:
-        'Do you see any food in this image? Describe what you see in one sentence.',
+        'Describe any food or food-related items in this image in one sentence.',
     };
 
     const MODE_LABELS = {
@@ -1459,10 +1492,10 @@
 
     async function loadModelOn(device, progress_callback) {
       const opts = {
-        /* q4 across the board. Total download is ~70 MB vs ~200 MB
-           for fp16, so iOS Safari is far less likely to drop a fetch
-           midway. Quality difference on short scene captions is minor. */
-        dtype: 'q4',
+        /* dtype comes from CONFIG: q4 on mobile (smaller download,
+           less memory), fp16 on desktop (better quality, faster on
+           WebGPU). */
+        dtype: CONFIG.DTYPE,
         device: device,
         progress_callback: progress_callback,
       };
@@ -1533,7 +1566,7 @@
         }
       }
 
-      statVlmBackendEl.textContent = 'smolvlm-256m · ' + backend;
+      statVlmBackendEl.textContent = CONFIG.MODEL_LABEL + ' · ' + backend;
       setStatus('Warming up');
 
       try {
