@@ -435,6 +435,58 @@
     }
 
     /* ============================================================
+       CAPTION BANNER (live caption overlaid on the video)
+    ============================================================ */
+    #captionBanner {
+      position: absolute;
+      bottom: 32px;
+      left: 50%;
+      transform: translateX(-50%) translateY(8px);
+      max-width: min(680px, 70%);
+      padding: 14px 22px;
+      border-radius: 14px;
+      z-index: 18;
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 0.4s ease, transform 0.4s ease;
+      background: rgba(20, 28, 34, 0.78);
+      backdrop-filter: blur(20px) saturate(140%);
+      -webkit-backdrop-filter: blur(20px) saturate(140%);
+      border: 1px solid rgba(255,255,255,0.06);
+      border-left: 3px solid var(--spinellblau);
+      box-shadow: 0 18px 48px -12px rgba(0,0,0,0.55);
+    }
+
+    #captionBanner.visible {
+      opacity: 1;
+      transform: translateX(-50%) translateY(0);
+    }
+
+    .caption-banner-text {
+      font-family: 'Instrument Serif', serif;
+      font-style: italic;
+      font-size: clamp(1.05rem, 2.4vw, 1.42rem);
+      line-height: 1.4;
+      text-align: center;
+      color: var(--ink);
+      margin: 0;
+    }
+
+    @media (max-width: 768px) {
+      #captionBanner {
+        bottom: calc(46vh + 16px);
+        max-width: 88%;
+        padding: 10px 16px;
+        border-radius: 12px;
+      }
+
+      .caption-banner-text {
+        font-size: 1rem;
+        line-height: 1.35;
+      }
+    }
+
+    /* ============================================================
        START OVERLAY
     ============================================================ */
     #startOverlay {
@@ -801,6 +853,11 @@
         </div>
       </div>
     </aside>
+
+    <!-- Live caption banner overlaid on the video -->
+    <div id="captionBanner">
+      <p class="caption-banner-text" id="captionBannerText"></p>
+    </div>
 
     <!-- Start / error overlay -->
     <div id="startOverlay">
@@ -1327,14 +1384,14 @@
       MODEL_LABEL:         'smolvlm-256m',
       FRAME_SIZE:          192,
       MAX_NEW_TOKENS:      24,
-      CAPTION_INTERVAL_MS: 10000,
+      CAPTION_INTERVAL_MS: 12000,
       DTYPE:               'q4',
     } : {
       MODEL_ID:            'HuggingFaceTB/SmolVLM-256M-Instruct',
       MODEL_LABEL:         'smolvlm-256m',
       FRAME_SIZE:          384,
-      MAX_NEW_TOKENS:      48,
-      CAPTION_INTERVAL_MS: 3000,
+      MAX_NEW_TOKENS:      40,
+      CAPTION_INTERVAL_MS: 6000,
       DTYPE: {
         embed_tokens:         'fp16',
         vision_encoder:       'fp16',
@@ -1442,6 +1499,19 @@
        Renders into #historyList in the panel. */
     const captionHistory = [];
     const historyListEl  = document.getElementById('historyList');
+
+    /* Live caption banner overlaid on the video. */
+    const captionBannerEl     = document.getElementById('captionBanner');
+    const captionBannerTextEl = document.getElementById('captionBannerText');
+
+    function showBanner(text) {
+      if (!text) {
+        captionBannerEl.classList.remove('visible');
+        return;
+      }
+      captionBannerTextEl.textContent = text;
+      captionBannerEl.classList.add('visible');
+    }
 
     function setStatus(text) {
       captionStatusEl.textContent = text;
@@ -1685,15 +1755,45 @@
     function cleanCaption(raw) {
       if (!raw) return '';
       let out = String(raw).trim();
-      /* Strip everything up to and including the assistant role marker
-         that some VLMs emit when we decode the full prompt+response. */
+
+      /* Strip chat-format and tokenizer artifacts that leak through
+         when we full-decode the prompt+response. */
       out = out.replace(/^[\s\S]*?<\|im_start\|>\s*assistant\s*/i, '');
       out = out.replace(/^[\s\S]*?\bassistant\s*[:\n]\s*/i, '');
       out = out.replace(/<\|im_end\|>/g, '');
       out = out.replace(/<\|endoftext\|>/g, '');
       out = out.replace(/^['"“‘]+|['"”’]+$/g, '');
       out = out.trim();
-      if (out && !/[.!?]$/.test(out)) out += '.';
+      if (!out) return '';
+
+      /* Quality filters. SmolVLM-256M sometimes emits short garbage
+         like "10." or "2" or pure punctuation. Drop those before they
+         hit the UI. */
+      if (out.length < 10) return '';
+      if (/^[\d\s.,!?:'"\-]+$/.test(out)) return '';
+
+      /* Truncate to the first complete sentence. The model often
+         starts strong then rambles into nonsense ("...headboard.
+         ledgerityof 10."). Keeping only the first sentence catches
+         a lot of model rambling without losing the useful content. */
+      const firstSentence = out.match(/^([^.!?]{8,}?[.!?])/);
+      if (firstSentence) {
+        out = firstSentence[1].trim();
+      } else {
+        /* No sentence terminator found. Cap at 140 chars on a word
+           boundary so we don't show 200+ chars of word salad. */
+        if (out.length > 140) {
+          out = out.slice(0, 140).replace(/\s+\S*$/, '') + '…';
+        } else {
+          out += '.';
+        }
+      }
+
+      /* Hard upper bound even after sentence trim */
+      if (out.length > 180) {
+        out = out.slice(0, 180).replace(/\s+\S*$/, '') + '…';
+      }
+
       return out;
     }
 
@@ -1807,6 +1907,7 @@
       if (sentence !== lastCaption) {
         lastCaption = sentence;
         setText(sentence, false);
+        showBanner(sentence);
         setStatus(MODE_LABELS[modeAtStart] + ' · Live');
         speak(sentence);
         pushHistory(sentence, modeAtStart);
@@ -1844,6 +1945,7 @@
       }
       lastCaption = '';
       resetHistory();
+      showBanner('');
     }
 
     window.addEventListener('polymetron:cameralive', startCaptionLoop);
