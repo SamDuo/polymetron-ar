@@ -1306,9 +1306,9 @@
 
     const MODEL_ID            = 'HuggingFaceTB/SmolVLM-256M-Instruct';
     const TRANSFORMERS_URL    = 'https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.7.5';
-    const CAPTION_INTERVAL_MS = 4500;
-    const FRAME_SIZE          = 384;
-    const MAX_NEW_TOKENS      = 48;
+    const CAPTION_INTERVAL_MS = 6000;
+    const FRAME_SIZE          = 256;
+    const MAX_NEW_TOKENS      = 32;
     const MAX_HISTORY         = 5;
 
     const MODE_ICONS = { food_rescue: '🍞', public_space: '🏙', people: '👥' };
@@ -1603,6 +1603,22 @@
           console.log('[polymetron] Raw decode:', JSON.stringify(decoded));
         } catch (decErr) {
           console.error('[polymetron] batch_decode failed:', decErr);
+        }
+
+        /* Explicitly release tensors so iOS Safari does not accumulate
+           inference-time allocations across ticks. Without this the
+           tab eventually hits the ~1.5 GB per-tab cap and gets killed
+           by the OS mid-inference (symptom: page reloads itself). */
+        try {
+          if (out && typeof out.dispose === 'function') out.dispose();
+          if (inputs) {
+            for (const k in inputs) {
+              const v = inputs[k];
+              if (v && typeof v.dispose === 'function') v.dispose();
+            }
+          }
+        } catch (disposeErr) {
+          console.warn('[polymetron] Tensor dispose failed (non-fatal):', disposeErr);
         }
 
         const latency = Math.round(performance.now() - t0);
