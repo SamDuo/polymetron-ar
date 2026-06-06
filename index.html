@@ -1458,7 +1458,7 @@
       MODEL_ID:            'HuggingFaceTB/SmolVLM-256M-Instruct',
       MODEL_LABEL:         'smolvlm-256m',
       FRAME_SIZE:          384,
-      MAX_NEW_TOKENS:      40,
+      MAX_NEW_TOKENS:      28,
       CAPTION_INTERVAL_MS: 6000,
       DTYPE: {
         embed_tokens:         'fp16',
@@ -1476,17 +1476,19 @@
 
     const MODE_ICONS = { food_rescue: '🍞', public_space: '🏙', people: '👥' };
 
-    /* Prompt registry. Reworked because earlier "How many people"
-       framing made SmolVLM emit bare numbers ("2") instead of full
-       sentences. Direct describe-the-scene prompts produce cleaner
-       outputs across all three modes. */
+    /* Prompt registry. Reworked because earlier "How many" or "one
+       sentence" trailers made SmolVLM emit bare counts ("2") or
+       leak prompt fragments into output as numbers ("10 The person
+       wearing glasses..."). New prompts use plain imperatives and
+       ask for state / expression / action which the model handles
+       better than abstract scene descriptions. */
     const PROMPTS = {
       public_space:
-        'Describe this scene in one sentence.',
+        'Describe what is happening in this scene.',
       people:
-        'Describe the people in this image and what they are doing in one sentence.',
+        'Describe the person and their expression and what they are doing.',
       food_rescue:
-        'Describe any food or food-related items in this image in one sentence.',
+        'Describe any food, drink, or food-related items you see.',
     };
 
     const MODE_LABELS = {
@@ -1797,7 +1799,7 @@
         const out = await model.generate({
           ...inputs,
           do_sample: false,
-          repetition_penalty: 1.1,
+          repetition_penalty: 1.25,
           max_new_tokens: MAX_NEW_TOKENS,
         });
 
@@ -1852,6 +1854,26 @@
       out = out.replace(/<\|im_end\|>/g, '');
       out = out.replace(/<\|endoftext\|>/g, '');
       out = out.replace(/^['"“‘]+|['"”’]+$/g, '');
+      out = out.trim();
+      if (!out) return '';
+
+      /* Strip leading numeric prefixes the model sometimes emits
+         ("10 The person...", "2. A man is...", "1) The scene"). The
+         model is regurgitating a fragment of the prompt instruction
+         as if continuing a numbered list. */
+      out = out.replace(/^\d+\s*[.,):\-]?\s+/, '');
+      out = out.replace(/^\d+\s+(?=[A-Za-z])/, '');
+
+      /* Strip trailing hallucinated date / year fragments that often
+         appear as the model rambles ("over 2 years old", "since 1995",
+         "in april 205"). Best-effort, not exhaustive. */
+      out = out.replace(/\s+(over|since|in|of|year\s+of)\s+[\w\s]{0,40}\d{1,4}\.?$/i, '.');
+
+      /* Capitalize first letter after the strips above. */
+      if (out && /^[a-z]/.test(out)) {
+        out = out.charAt(0).toUpperCase() + out.slice(1);
+      }
+
       out = out.trim();
       if (!out) return '';
 
