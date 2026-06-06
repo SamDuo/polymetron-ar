@@ -470,7 +470,38 @@
       text-align: center;
       color: var(--ink);
       margin: 0;
+      transition: opacity 0.22s ease;
     }
+
+    .caption-banner-text.fading {
+      opacity: 0;
+    }
+
+    @keyframes bannerPulse {
+      0%   { box-shadow: 0 18px 48px -12px rgba(0,0,0,0.55), 0 0 0 0 rgba(28, 92, 132, 0.55); border-left-color: var(--spinellblau); }
+      55%  { box-shadow: 0 18px 48px -12px rgba(0,0,0,0.55), 0 0 0 10px rgba(28, 92, 132, 0); border-left-color: #6aa4cf; }
+      100% { box-shadow: 0 18px 48px -12px rgba(0,0,0,0.55), 0 0 0 0 rgba(28, 92, 132, 0); border-left-color: var(--spinellblau); }
+    }
+
+    #captionBanner.pulse {
+      animation: bannerPulse 1.1s ease-out;
+    }
+
+    /* ============================================================
+       DEMO MODE (full-screen recording: panel + brand + status pill
+       are hidden so only the video and caption banner remain)
+    ============================================================ */
+    #stage.demo-mode #panel { opacity: 0 !important; pointer-events: none !important; transform: translateX(20px); }
+    #stage.demo-mode .brand { opacity: 0; pointer-events: none; }
+    #stage.demo-mode .status-pill { opacity: 0; pointer-events: none; }
+
+    @media (max-width: 768px) {
+      #stage.demo-mode #panel { transform: translateY(100%); }
+      #stage.demo-mode #captionBanner { bottom: 32px; max-width: 88%; }
+    }
+
+    .brand, .status-pill { transition: opacity 0.35s ease; }
+    #panel { transition: opacity 0.4s ease, transform 0.4s ease; }
 
     @media (max-width: 768px) {
       #captionBanner {
@@ -708,11 +739,13 @@
     }
 
     /* ============================================================
-       AUDIO TOGGLE
+       HEADER ICON BUTTONS (audio toggle, demo toggle)
     ============================================================ */
-    .audio-toggle {
-      width: 34px;
-      height: 34px;
+    .icon-btn,
+    .audio-toggle,
+    .demo-toggle {
+      width: 40px;
+      height: 40px;
       border-radius: 999px;
       border: 1px solid rgba(255,255,255,0.08);
       background: rgba(50, 64, 73, 0.78);
@@ -724,12 +757,25 @@
       cursor: pointer;
       padding: 0;
       color: var(--ink);
-      transition: opacity 0.2s;
+      transition: opacity 0.2s, background 0.2s;
     }
 
-    .audio-toggle:hover { opacity: 0.85; }
-    .audio-toggle.muted { color: var(--dim); }
-    .audio-toggle svg { width: 16px; height: 16px; }
+    .icon-btn:hover,
+    .audio-toggle:hover,
+    .demo-toggle:hover { opacity: 0.85; }
+
+    .audio-toggle.muted,
+    .demo-toggle.active { color: var(--dim); }
+
+    .audio-toggle svg,
+    .demo-toggle svg {
+      width: 20px;
+      height: 20px;
+    }
+
+    .demo-toggle .icon-compress { display: none; }
+    .demo-toggle.active .icon-expand { display: none; }
+    .demo-toggle.active .icon-compress { display: block; }
 
     .header-right {
       display: flex;
@@ -759,6 +805,14 @@
         <span class="brand-sub">Edge AI Perception</span>
       </div>
       <div class="header-right">
+        <button class="demo-toggle" id="demoToggle" aria-label="Enter demo mode" title="Demo mode (hide panel)">
+          <svg class="icon-expand" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+            <path d="M3 9V3h6M21 9V3h-6M3 15v6h6M21 15v6h-6"/>
+          </svg>
+          <svg class="icon-compress" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" xmlns="http://www.w3.org/2000/svg">
+            <path d="M9 3v6H3M15 3v6h6M9 21v-6H3M15 21v-6h6"/>
+          </svg>
+        </button>
         <button class="audio-toggle" id="audioToggle" aria-label="Mute narration" title="Toggle narration">
           <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg">
             <path d="M3 9v6h4l5 5V4L7 9H3z"/>
@@ -1314,6 +1368,20 @@
     });
 
     /* ============================================================
+       DEMO TOGGLE (hide panel + brand for recording / fullscreen)
+    ============================================================ */
+    var stageEl = document.getElementById('stage');
+    var demoToggle = document.getElementById('demoToggle');
+    demoToggle.addEventListener('click', function() {
+      var nowActive = !stageEl.classList.contains('demo-mode');
+      stageEl.classList.toggle('demo-mode', nowActive);
+      demoToggle.classList.toggle('active', nowActive);
+      var label = nowActive ? 'Exit demo mode' : 'Enter demo mode';
+      demoToggle.setAttribute('aria-label', label);
+      demoToggle.setAttribute('title', label);
+    });
+
+    /* ============================================================
        MODE TOGGLE (Food rescue / Public space)
        The VLM module reads window.polymetronMode each tick.
     ============================================================ */
@@ -1509,8 +1577,29 @@
         captionBannerEl.classList.remove('visible');
         return;
       }
-      captionBannerTextEl.textContent = text;
-      captionBannerEl.classList.add('visible');
+
+      const wasVisible = captionBannerEl.classList.contains('visible');
+      const isSwap    = wasVisible && captionBannerTextEl.textContent && captionBannerTextEl.textContent !== text;
+
+      if (isSwap) {
+        /* Fade text out, swap, fade in for a smoother transition between
+           captions instead of a hard text replace. */
+        captionBannerTextEl.classList.add('fading');
+        setTimeout(function() {
+          captionBannerTextEl.textContent = text;
+          captionBannerTextEl.classList.remove('fading');
+        }, 230);
+      } else {
+        captionBannerTextEl.textContent = text;
+        captionBannerEl.classList.add('visible');
+      }
+
+      /* Pulse the Spinellblau ring to draw attention to the new
+         caption. Restart the animation by removing and re-adding the
+         class, forcing a reflow in between. */
+      captionBannerEl.classList.remove('pulse');
+      void captionBannerEl.offsetWidth;
+      captionBannerEl.classList.add('pulse');
     }
 
     function setStatus(text) {
